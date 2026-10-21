@@ -89,13 +89,13 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: BatteryDiagnostic-0.7.9-QA
+          name: BatteryDiagnostic-0.8.0-QA
           path: qa-output/
           if-no-files-found: warn
       - name: Upload Windows build
         uses: actions/upload-artifact@v4
         with:
-          name: BatteryDiagnostic-0.7.9-win-x64
+          name: BatteryDiagnostic-0.8.0-win-x64
           path: publish-win-x64/
           if-no-files-found: error
           retention-days: 30

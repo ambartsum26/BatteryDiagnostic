@@ -29,6 +29,18 @@ internal sealed class PerformanceDashboard : UserControl
     StorageVolume? SelectedVolume=>SelectedDisk?.Volumes.ElementAtOrDefault(volumes.SelectedIndex);
     MemoryModule? SelectedModule=>inventory?.Memory.Modules.ElementAtOrDefault(modules.SelectedIndex);
     GpuInventory? SelectedGpu=>inventory?.Gpus.ElementAtOrDefault(gpus.SelectedIndex);
+    internal ulong? InstalledRamBytes
+    {
+        get
+        {
+            var all=inventory?.Memory.Modules;
+            if(all is null||all.Count==0||all.Any(m=>m.CapacityBytes is null or 0))return null;
+            ulong sum=0;
+            foreach(var module in all){if(ulong.MaxValue-sum<module.CapacityBytes!.Value)return null;sum+=module.CapacityBytes.Value;}
+            return sum;
+        }
+    }
+    internal string CdiStatus=>T(LibCdiStorage.StatusKey(storage,SelectedDisk,StorageFresh));
     internal bool HasLiveSample=>live!=null;
     internal int SampleCount=>history.Count;
     internal string CurrentDiskCondition=>Health(SelectedDisk);
@@ -131,7 +143,7 @@ internal sealed class PerformanceDashboard : UserControl
         if(d==null)return T("health")+": "+Health(SelectedDisk)+Environment.NewLine+T("healthTip");
         string source=T(d.HealthSource switch {"WindowsStorage"=>"sourceStorage","NvmeHealthLog"=>"sourceNvme","FailurePrediction"=>"sourcePrediction","AtaSmartThresholds"=>"sourceAta","AtaSmartSectors"=>"sourceSectors",_=>"unknown"});
         string summary=PerfText.F(language,"diskSummary",d.TemperatureC is {} temperature?N(temperature)+" °C":Unknown,Number(d.PowerOnCount),Number(d.PowerOnHours));
-        var lines=new List<string> {d.Model,T("health")+": "+Health(d),summary,T("basis")+": "+source};
+        var lines=new List<string> {d.Model,"CrystalDiskInfo: "+CdiStatus,T("health")+": "+Health(d),summary,T("basis")+": "+source};
         if(d.NvmeAvailableSparePercent.HasValue)lines.Add(PerfText.F(language,"nvmeSpare",Number(d.NvmeAvailableSparePercent),Number(d.NvmeSpareThresholdPercent)));
         lines.Add(T("mediaErrors")+": "+Number(d.NvmeMediaErrors));
         if(d.NvmeCriticalWarning.HasValue)lines.Add(T("nvmeFlags")+": 0x"+d.NvmeCriticalWarning.Value.ToString("X2"));
@@ -154,7 +166,7 @@ internal sealed class PerformanceDashboard : UserControl
     {
         tips.SetToolTip(cpuActivate,CpuExplanation());
         tips.SetToolTip(diskAccess,T("diskElevate"));
-        tips.SetToolTip(modules,string.Join(Environment.NewLine,new[]{SelectedModule?.Slot,MemoryManufacturer.Display(SelectedModule?.Manufacturer),SelectedModule?.Manufacturer,SelectedModule?.PartNumber,T("ramTip")}.Where(s=>!string.IsNullOrEmpty(s))));
+        tips.SetToolTip(modules,string.Join(Environment.NewLine,new[]{T("installedRam")+": "+Memory(InstalledRamBytes),T("usableRam")+": "+Memory(FreshLive?.Memory.TotalBytes),SelectedModule?.Slot,MemoryManufacturer.Display(SelectedModule?.Manufacturer),SelectedModule?.Manufacturer,SelectedModule?.PartNumber,T("ramTip")}.Where(s=>!string.IsNullOrEmpty(s))));
         tips.SetToolTip(gpus,(SelectedGpu?.Model??Unknown)+Environment.NewLine+T("gpuTip")+Environment.NewLine+T("gpuLoadBasis"));
         tips.SetToolTip(disks,DiskExplanation());
         tips.SetToolTip(volumes,SelectedVolume?.SharedAcrossDisks==true?T("sharedVolume")+Environment.NewLine+T("diskTip"):T("diskTip"));
@@ -179,15 +191,15 @@ internal sealed class PerformanceDashboard : UserControl
     protected override void OnMouseMove(MouseEventArgs e)
     {
         base.OnMouseMove(e);float x=(e.X-viewX)/viewScale,y=(e.Y-viewY)/viewScale;
-        string next=y is >=68 and <=296?(x<500?"cpuTip":"ramTip"):y is >=306 and <=662?(x<500?"gpuTip":"diskTip"):"";
+        string next=y is >=68 and <=296?(x<500?"cpuTip":"ramTip"):y is >=306 and <=672?(x<500?"gpuTip":"diskTip"):"";
         if(next!=tipKey){tipKey=next;tips.SetToolTip(this,next=="diskTip"?DiskExplanation():next=="cpuTip"?CpuExplanation():next.Length>0?T(next):null);}
     }
     protected override void OnResize(EventArgs e){base.OnResize(e);PlaceSelectors();}
     void PlaceSelectors()
     {
         if(modules==null||Width<=0||Height<=0)return;
-        viewScale=Math.Max(.1f,Math.Min(Width/1000f,Height/700f));viewX=(Width-1000*viewScale)/2;viewY=(Height-700*viewScale)/2;
-        Place(modules,520,187,446);Place(gpus,32,343,449);Place(disks,519,343,449);Place(volumes,519,545,449);
+        viewScale=Math.Max(.1f,Math.Min(Width/1000f,Height/710f));viewX=(Width-1000*viewScale)/2;viewY=(Height-710*viewScale)/2;
+        Place(modules,520,210,446);Place(gpus,32,343,449);Place(disks,519,343,449);Place(volumes,519,551,449);
         cpuActivate.SetBounds((int)(viewX+335*viewScale),(int)(viewY+80*viewScale),(int)(146*viewScale),(int)(22*viewScale));
         diskAccess.SetBounds((int)(viewX+815*viewScale),(int)(viewY+318*viewScale),(int)(152*viewScale),(int)(22*viewScale));
         smartDetails.SetBounds((int)(viewX+714*viewScale),(int)(viewY+318*viewScale),(int)(90*viewScale),(int)(22*viewScale));
@@ -208,9 +220,9 @@ internal sealed class PerformanceDashboard : UserControl
         base.OnPaint(e);var g=e.Graphics;g.Clear(Theme.Background);g.SmoothingMode=SmoothingMode.AntiAlias;g.TextRenderingHint=TextRenderingHint.ClearTypeGridFit;
         g.TranslateTransform(viewX,viewY);g.ScaleTransform(viewScale,viewScale);
         DrawText(g,T("heading"),18,10,960,28,20,true);DrawText(g,live!=null&&FreshLive==null?T("liveStale"):T("subtitle"),18,42,960,20,12,false,live!=null&&FreshLive==null?Theme.Warning:Theme.Muted);
-        Card(g,18,68,477,228,T("cpu"));Card(g,505,68,477,228,T("ram"));Card(g,18,306,477,356,T("gpu"));Card(g,505,306,477,356,T("disk"));
+        Card(g,18,68,477,228,T("cpu"));Card(g,505,68,477,228,T("ram"));Card(g,18,306,477,366,T("gpu"));Card(g,505,306,477,366,T("disk"));
         DrawCpu(g);DrawMemory(g);DrawGpu(g);DrawStorage(g);
-        DrawText(g,T("notHealthTest"),18,676,964,24,12,false,Theme.Muted);
+        DrawText(g,T("notHealthTest"),18,683,964,24,12,false,Theme.Muted);
     }
     void Card(Graphics g,float x,float y,float w,float h,string name)
     {
@@ -255,16 +267,18 @@ internal sealed class PerformanceDashboard : UserControl
     }
     void DrawMemory(Graphics g)
     {
-        DrawText(g,T("used")+": "+Memory(FreshLive?.Memory.UsedBytes),520,108,215,32,14,true);
-        DrawText(g,T("available")+": "+Memory(FreshLive?.Memory.AvailableBytes),744,108,222,32,14,true);
-        using var bg=new SolidBrush(Theme.Border);g.FillRectangle(bg,520,149,446,6);
+        MemoryCell(g,T("installedRam"),Memory(InstalledRamBytes),520,105);
+        MemoryCell(g,T("used"),Memory(FreshLive?.Memory.UsedBytes),670,105);
+        MemoryCell(g,T("available"),Memory(FreshLive?.Memory.AvailableBytes),820,105);
+        DrawText(g,T("usableRam")+": "+Memory(FreshLive?.Memory.TotalBytes),520,151,446,22,12,false,Theme.Muted);
+        using var bg=new SolidBrush(Theme.Border);g.FillRectangle(bg,520,177,446,6);
         if(FreshLive?.Memory.TotalBytes is >0 && FreshLive!.Memory.UsedBytes.HasValue)
-        {using var fill=new SolidBrush(Theme.Accent);g.FillRectangle(fill,520,149,(float)Math.Clamp(FreshLive!.Memory.UsedBytes.Value/(double)FreshLive!.Memory.TotalBytes.Value,0,1)*446,6);}
-        DrawText(g,T("modules"),520,164,265,19,10,false,Theme.Muted);
-        DrawText(g,(inventory?.Memory.Modules.Count is >0?inventory.Memory.Modules.Count.ToString(L.Culture(language)):Unknown)+" / "+Number(inventory?.Memory.TotalSlots),754,164,212,19,11,true);
+        {using var fill=new SolidBrush(Theme.Accent);g.FillRectangle(fill,520,177,(float)Math.Clamp(FreshLive!.Memory.UsedBytes.Value/(double)FreshLive!.Memory.TotalBytes.Value,0,1)*446,6);}
+        DrawText(g,T("modules"),520,188,265,19,12,false,Theme.Muted);
+        DrawText(g,(inventory?.Memory.Modules.Count is >0?inventory.Memory.Modules.Count.ToString(L.Culture(language)):Unknown)+" / "+Number(inventory?.Memory.TotalSlots),754,188,212,19,12,true);
         var m=SelectedModule;
-        DrawText(g,T("configuredSpeed")+": "+(m?.ConfiguredSpeedMTs is {} speed?N(speed,"0")+" "+T("mt"):m?.ConfiguredClockMHz is {} clock?N(clock,"0")+" "+T("mhz"):Unknown),520,220,446,24,12,true);
-        DrawText(g,T("manufacturer")+": "+(MemoryManufacturer.Display(m?.Manufacturer)??Unknown),520,248,446,24,12,true);
+        DrawText(g,T("configuredSpeed")+": "+(m?.ConfiguredSpeedMTs is {} speed?N(speed,"0")+" "+T("mt"):m?.ConfiguredClockMHz is {} clock?N(clock,"0")+" "+T("mhz"):Unknown),520,240,446,24,12,true);
+        DrawText(g,T("manufacturer")+": "+(MemoryManufacturer.Display(m?.Manufacturer)??Unknown),520,268,446,24,12,true);
     }
     string SampleTime(DateTimeOffset? time,string key)
     {
@@ -292,23 +306,23 @@ internal sealed class PerformanceDashboard : UserControl
     void DrawStorage(Graphics g)
     {
         var d=SelectedDisk;var v=StorageFresh?SelectedVolume:null;var freshDisk=StorageFresh?d:null;
-        string type=d==null?Unknown:(d.MediaType=="Unknown"?T("typeUnknown"):d.MediaType=="NonRotating"?T("nonRotating"):d.MediaType)+" · "+(d.BusType??Unknown)+" · "+DiskBytes(d.TotalBytes);
+        string type=d==null?Unknown:d.BusType=="NVMe"?"NVMe · "+DiskBytes(d.TotalBytes):(d.MediaType=="Unknown"?T("typeUnknown"):d.MediaType=="NonRotating"?T("nonRotating"):d.MediaType)+" · "+(d.BusType??Unknown)+" · "+DiskBytes(d.TotalBytes);
         DrawText(g,type,519,373,449,21,12,false,Theme.Muted);
         string health=Health(d);Color color=freshDisk!=null?DiskAssessmentEngine.Evaluate(freshDisk).Color:Theme.Muted;
         DrawText(g,health,519,399,449,23,14,true,color);
-        DrawText(g,T("limitedAssessment"),519,425,449,22,12,false,Theme.Muted);
+        DrawText(g,"CrystalDiskInfo: "+CdiStatus,519,425,449,22,12,false,Theme.Muted);
         DrawText(g,T("resource")+": "+Resource(d),519,450,449,23,13,true);
         string spare=freshDisk?.NvmeAvailableSparePercent is {} sp?N(sp)+" %":Unknown;
         string errors=Number(freshDisk?.NvmeMediaErrors);
         DrawText(g,T("spareShort")+": "+spare,519,477,221,22,12);
         DrawText(g,T("mediaErrorsShort")+": "+errors,744,477,224,35,12);
         DrawText(g,T("powerCycles")+": "+Number(freshDisk?.PowerOnCount),519,503,449,22,13);
-        DrawText(g,T("powerHours")+": "+Number(freshDisk?.PowerOnHours),519,528,449,22,13);
-        MemoryCell(g,T("total"),DiskBytes(v?.TotalBytes),519,576);
-        MemoryCell(g,T("usedSpace"),DiskBytes(v?.UsedBytes),669,576);
-        MemoryCell(g,T("free"),DiskBytes(v?.FreeBytes),819,576);
-        DrawText(g,T("temperature")+": "+(freshDisk?.TemperatureC is {} temp?N(temp)+" °C":Unknown),519,620,449,22,13,true);
-        DrawText(g,SampleTime(storage?.Timestamp,"diskUpdated"),519,644,449,18,12,false,StorageFresh?Theme.Muted:Theme.Warning);
+        DrawText(g,T("powerHours")+": "+Number(freshDisk?.PowerOnHours),519,523,449,19,13);
+        MemoryCell(g,T("total"),DiskBytes(v?.TotalBytes),519,582);
+        MemoryCell(g,T("usedSpace"),DiskBytes(v?.UsedBytes),669,582);
+        MemoryCell(g,T("free"),DiskBytes(v?.FreeBytes),819,582);
+        DrawText(g,T("temperature")+": "+(freshDisk?.TemperatureC is {} temp?N(temp)+" °C":Unknown),519,627,449,22,13,true);
+        DrawText(g,SampleTime(storage?.Timestamp,"diskUpdated"),519,651,449,18,12,false,StorageFresh?Theme.Muted:Theme.Warning);
     }
     static void MemoryCell(Graphics g,string caption,string value,float x,float y)
     {DrawText(g,caption,x,y,145,18,12,false,Theme.Muted);DrawText(g,value,x,y+19,145,22,15,true);}

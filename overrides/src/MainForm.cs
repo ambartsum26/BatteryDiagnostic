@@ -3,7 +3,7 @@ namespace BatteryDiagnostic;
 
 internal sealed partial class MainForm : Form
 {
-    internal const string Version="0.7.9";
+    internal const string Version="0.8.0";
     readonly IContainer components=new Container();
     readonly IBatterySource source;
     readonly SessionMonitor monitor=new();

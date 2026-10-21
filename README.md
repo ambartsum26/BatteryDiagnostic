@@ -1,7 +1,7 @@
-# BatteryDiagnostic 0.7.9
+# BatteryDiagnostic 0.8.0
 
-Windows x64 portable application. Original source.zip is extracted and overrides/src files are applied before compilation. .NET 10 is bundled with the published EXE.
+Portable Windows x64, .NET 10 bundled. Extract source.zip and apply overrides/src before building.
 
-0.7.9 improves readability, labels reported clocks and configured memory rate, timestamps readings, clears stale values, decodes NVMe power cycles and data units, and displays endurance, spare and media errors independently of critical flags. Historical media errors are a caution, not proof of current failure.
+0.8.0 adds installed RAM from the complete firmware module inventory, separately labels usable Windows RAM, and shows per-drive CrystalDiskInfo/libcdi integration status. The native library is pinned to official NWinfo v1.6.6, SHA-256-verified at build time and before loading, and loaded only beside the application. Status distinguishes missing/rejected DLL, load or read failure, unmatched disks, matched data and stale samples. SMART details retain diagnostics. Existing trustworthy readings are retained when CDI provides fallback data; disk identity requires both physical drive index and model.
 
-CI runs a separate non-elevated fixture harness for parsers, assessment and UI rendering in FR/EN/RU. Fixture previews use synthetic data. The production EXE, hardware probes and driver installers are not executed in CI.
+CI checks native DLL exports and reads cdi_get_version without creating a SMART object or enumerating hardware. A separate non-elevated fixture harness tests parsers, RAM accounting, CDI state reporting, disk assessment and FR/EN/RU UI. The production EXE and hardware probes are not run in CI. Driver installers are not run.
