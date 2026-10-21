@@ -1,3 +1,3 @@
 # BatteryDiagnostic 0.7.8
 
-Windows x64 build of the supplied BatteryDiagnostic source. Build artifacts are published in GitHub Actions. Hardware and elevated UI tests are not run in CI.
+Windows x64 build using .NET 10. The supplied source archive is extracted before compilation. Download the compiled EXE from GitHub Actions artifacts. Hardware and elevated UI tests are not executed in CI.

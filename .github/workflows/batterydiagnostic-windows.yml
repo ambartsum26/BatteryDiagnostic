@@ -1,0 +1,75 @@
+name: Build BatteryDiagnostic Windows EXE
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-publish:
+    runs-on: windows-latest
+    timeout-minutes: 35
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Extract supplied source
+        shell: pwsh
+        run: |
+          Expand-Archive source.zip -DestinationPath source-unpacked
+          Copy-Item source-unpacked/BatteryDiagnostic-0.7.8-ONE-CLICK/* . -Recurse -Force
+      - name: Install .NET 10 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Show installed SDK
+        shell: pwsh
+        run: dotnet --info
+      - name: Restore
+        shell: pwsh
+        run: dotnet restore src/BatteryDiagnostic.csproj -r win-x64
+      - name: Compile self-contained x64 EXE
+        shell: pwsh
+        run: |
+          dotnet publish src/BatteryDiagnostic.csproj -c Release -r win-x64 --self-contained true --no-restore -o publish-win-x64 '-p:PublishSingleFile=true' '-p:IncludeNativeLibrariesForSelfExtract=true'
+          if ($LASTEXITCODE -ne 0) { throw "dotnet publish exited with $LASTEXITCODE" }
+          if (!(Test-Path 'publish-win-x64/BatteryDiagnostic.exe')) { throw 'BatteryDiagnostic.exe missing' }
+          Write-Host "Built EXE size:" (Get-Item 'publish-win-x64/BatteryDiagnostic.exe').Length
+      - name: Install verified optional libcdi SMART backend
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $url = 'https://github.com/a1ive/nwinfo/releases/download/v1.6.6/NWinfo.zip'
+          $expected = '52006A9280B53449375FD8D7211A2A8DEF7E287F93028BB469660CE877BD4A2E'
+          Invoke-WebRequest -Uri $url -OutFile nwinfo.zip -ErrorAction Stop
+          $actual = (Get-FileHash nwinfo.zip -Algorithm SHA256).Hash
+          if ($actual -ine $expected) { throw 'NWinfo.zip SHA256 verification failed' }
+          Expand-Archive nwinfo.zip -DestinationPath nwinfo-unpacked
+          $dlls = @(Get-ChildItem nwinfo-unpacked -Filter libcdi.dll -Recurse -File)
+          $x64 = @($dlls | Where-Object {
+            $fs = [IO.File]::OpenRead($_.FullName)
+            try {
+              $br = [IO.BinaryReader]::new($fs)
+              if ($br.ReadUInt16() -ne 0x5A4D) { return $false }
+              [void]$fs.Seek(0x3c, [IO.SeekOrigin]::Begin)
+              $offset = $br.ReadInt32()
+              if ($offset -lt 64 -or $offset -gt $fs.Length - 24) { return $false }
+              [void]$fs.Seek($offset, [IO.SeekOrigin]::Begin)
+              if ($br.ReadUInt32() -ne 0x4550) { return $false }
+              $br.ReadUInt16() -eq 0x8664
+            }
+            finally { $fs.Dispose() }
+          })
+          if ($x64.Count -ne 1) { throw "Expected one x64 libcdi.dll, got $($x64.Count)" }
+          Copy-Item $x64[0].FullName publish-win-x64/libcdi.dll
+          Copy-Item src/ThirdParty/libcdi/LICENSE.txt publish-win-x64/libcdi-LICENSE.txt
+          Remove-Item nwinfo.zip -Force
+          Remove-Item nwinfo-unpacked -Recurse -Force
+      - name: Upload Windows build
+        uses: actions/upload-artifact@v4
+        with:
+          name: BatteryDiagnostic-0.7.8-win-x64
+          path: publish-win-x64/
+          if-no-files-found: error
+          retention-days: 30
