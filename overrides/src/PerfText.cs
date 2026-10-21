@@ -18,7 +18,7 @@ internal static class PerfText
     }
     static readonly Dictionary<string,(string Fr,string En,string Ru)> text=new()
     {
-        ["frequencyWindows"]=("Fréq. Windows","Windows clock","Частота Windows"),
+        ["frequencyWindows"]=("Fréq. Windows","Windows clock","Частота ОС"),
         ["frequencyDriver"]=("Fréq. pilote","Driver clock","Частота драйвера"),
         ["configuredSpeed"]=("Débit configuré (firmware)","Configured rate (firmware)","Скорость по прошивке"),
         ["capacityDriver"]=("Capacité déclarée par le pilote","Capacity reported by driver","Объём по данным драйвера"),
@@ -93,7 +93,7 @@ internal static class PerfText
         ["usage"]=("Utilisation","Utilisation","Загрузка"),
         ["temperature"]=("Température","Temperature","Температура"),
         ["frequency"]=("Fréquence","Frequency","Частота"),
-        ["cores"]=("Cœurs / fils","Cores / threads","Ядра / потоки"),
+        ["cores"]=("Cœurs / fils","Cores/threads","Ядра / потоки"),
         ["used"]=("Utilisée","Used","Используется"),
         ["usedSpace"]=("Utilisé","Used","Занято"),
         ["available"]=("Disponible","Available","Доступно"),

@@ -30,9 +30,9 @@ internal static class QaEntry
                 view.DrawToBitmap(bitmap,new Rectangle(Point.Empty,size));
                 bitmap.Save($"qa-output/{language}-{size.Width}.png");
                 view.SetData(inventory,live with {Timestamp=now.AddMinutes(-2)},new(now.AddMinutes(-2),[disk],[]),language);
-                using var stale=new Bitmap(size.Width,size.Height);view.DrawToBitmap(stale,new Rectangle(Point.Empty,size));stale.Save($"qa-output/{language}-stale-{size.Width}.png");
+                Application.DoEvents();using var stale=new Bitmap(size.Width,size.Height);view.DrawToBitmap(stale,new Rectangle(Point.Empty,size));stale.Save($"qa-output/{language}-stale-{size.Width}.png");
                 view.SetData(inventory,null,new(now,[disk with {PowerOnCount=null,RemainingLifePercent=null,NvmeMediaErrors=null,NvmeAvailableSparePercent=null}],[]),language);
-                using var missing=new Bitmap(size.Width,size.Height);view.DrawToBitmap(missing,new Rectangle(Point.Empty,size));missing.Save($"qa-output/{language}-missing-{size.Width}.png");
+                Application.DoEvents();using var missing=new Bitmap(size.Width,size.Height);view.DrawToBitmap(missing,new Rectangle(Point.Empty,size));missing.Save($"qa-output/{language}-missing-{size.Width}.png");
             }
             File.WriteAllText("qa-output/result.txt","PASS: storage decoder, overflow boundaries, disk assessment, translations, inventory parsing, sensor parsing, existing UI fixture tests; rendered FR/EN/RU at two sizes, fresh/stale/missing. No physical hardware probe, no elevation, no driver install.");
             Console.WriteLine(File.ReadAllText("qa-output/result.txt"));return 0;
