@@ -141,7 +141,7 @@ internal sealed class PerformanceDashboard : UserControl
     {
         var d=StorageFresh?SelectedDisk:null;
         if(d==null)return T("health")+": "+Health(SelectedDisk)+Environment.NewLine+T("healthTip");
-        string source=T(d.HealthSource switch {"WindowsStorage"=>"sourceStorage","NvmeHealthLog"=>"sourceNvme","FailurePrediction"=>"sourcePrediction","AtaSmartThresholds"=>"sourceAta","AtaSmartSectors"=>"sourceSectors",_=>"unknown"});
+        string source=T(d.HealthSource switch {"WindowsStorage"=>"sourceStorage","NvmeHealthLog"=>"sourceNvme","LibCdi"=>"sourceCdi","FailurePrediction"=>"sourcePrediction","AtaSmartThresholds"=>"sourceAta","AtaSmartSectors"=>"sourceSectors",_=>"unknown"});
         string summary=PerfText.F(language,"diskSummary",d.TemperatureC is {} temperature?N(temperature)+" °C":Unknown,Number(d.PowerOnCount),Number(d.PowerOnHours));
         var lines=new List<string> {d.Model,"CrystalDiskInfo: "+CdiStatus,T("health")+": "+Health(d),summary,T("basis")+": "+source};
         if(d.NvmeAvailableSparePercent.HasValue)lines.Add(PerfText.F(language,"nvmeSpare",Number(d.NvmeAvailableSparePercent),Number(d.NvmeSpareThresholdPercent)));

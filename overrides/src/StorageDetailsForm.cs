@@ -31,7 +31,7 @@ internal sealed class StorageDetailsForm : Form
         foreach(var (id,caption,weight) in new[]{("id","ID",35f),("name",T("attribute"),180f),("current",T("current"),65f),("worst",T("worst"),65f),("threshold",T("threshold"),65f),("raw",T("raw"),120f)})
             table.Columns.Add(new DataGridViewTextBoxColumn{Name=id,HeaderText=caption,FillWeight=weight,SortMode=DataGridViewColumnSortMode.NotSortable});
         var layout=new TableLayoutPanel {Dock=DockStyle.Fill,Padding=new Padding(16),RowCount=5,ColumnCount=1};
-        layout.RowStyles.Add(new RowStyle(SizeType.Absolute,104));layout.RowStyles.Add(new RowStyle(SizeType.Percent,100));
+        layout.RowStyles.Add(new RowStyle(SizeType.Absolute,122));layout.RowStyles.Add(new RowStyle(SizeType.Percent,100));
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute,96));
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute,42));layout.RowStyles.Add(new RowStyle(SizeType.Absolute,38));
         layout.Controls.Add(description,0,0);layout.Controls.Add(table,0,1);
@@ -64,7 +64,7 @@ internal sealed class StorageDetailsForm : Form
             string.Join(Environment.NewLine,(snapshot?.Diagnostics??[]).Concat(disk?.Diagnostics??[]));
         string Available(string? value)=>string.IsNullOrEmpty(value)||value=="None"?T("unknown"):value;
         description.Text=(disk?.Model??T("unknown"))+Environment.NewLine+T("readingTime")+": "+(snapshot?.Timestamp.ToString("T",L.Culture(language))??T("unknown"))+Environment.NewLine+
-            "CrystalDiskInfo: "+T(LibCdiStorage.StatusKey(snapshot,disk,fresh))+Environment.NewLine+T("profile")+": "+Available(disk?.AtaProfile)+" · "+T("transport")+": "+Available(disk?.AtaSmartSource);
+            "CrystalDiskInfo: "+T(LibCdiStorage.StatusKey(snapshot,disk,fresh))+Environment.NewLine+T("basis")+": "+Available(disk?.HealthSource)+Environment.NewLine+T("profile")+": "+Available(disk?.AtaProfile)+" · "+T("transport")+": "+Available(disk?.AtaSmartSource);
         if(disk is null||!fresh){table.Rows.Add("—",T(fresh?"unknown":"storageStale"),"—","—","—","—");return;}
         foreach(var a in disk.SmartAttributes)table.Rows.Add(a.Id.ToString("X2"),"SMART "+a.Id.ToString("X2"),N(a.Current),N(a.Worst),a.Threshold.HasValue?N(a.Threshold):"—",a.Raw.ToString("X12"));
         void Add(string label,object? value,string unit=""){if(value!=null)table.Rows.Add("—",label,"—","—","—",N(value)+unit);}

@@ -42,6 +42,7 @@ internal static class PerfText
         ["cdiNoMatch"]=("chargée, disque non associé","loaded, disk not matched","загружена, диск не сопоставлен"),
         ["cdiNoData"]=("disque associé, données absentes","disk matched, no usable data","диск сопоставлен, данных нет"),
         ["cdiFailed"]=("échec du chargement ou de lecture","load or read failed","ошибка загрузки или чтения"),
+        ["sourceCdi"]=("CrystalDiskInfo / libcdi","CrystalDiskInfo / libcdi","CrystalDiskInfo / libcdi"),
         ["selected"]=("Onglet sélectionné","Selected tab","Выбранная вкладка"),
         ["batteryTab"]=("Batterie","Battery","Батарея"),
         ["heading"]=("Performances de l’appareil","Device performance","Производительность компьютера"),
