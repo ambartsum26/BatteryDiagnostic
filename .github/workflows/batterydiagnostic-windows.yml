@@ -19,6 +19,7 @@ jobs:
         run: |
           Expand-Archive source.zip -DestinationPath source-unpacked
           Copy-Item source-unpacked/BatteryDiagnostic-0.7.8-ONE-CLICK/* . -Recurse -Force
+          Copy-Item overrides/src/* src/ -Force
       - name: Install .NET 10 SDK
         uses: actions/setup-dotnet@v4
         with:
@@ -66,10 +67,35 @@ jobs:
           Copy-Item src/ThirdParty/libcdi/LICENSE.txt publish-win-x64/libcdi-LICENSE.txt
           Remove-Item nwinfo.zip -Force
           Remove-Item nwinfo-unpacked -Recurse -Force
+      - name: Test decoders and render UI fixtures without elevation
+        shell: pwsh
+        run: |
+          [xml]$qa = Get-Content src/BatteryDiagnostic.csproj
+          $group = $qa.Project.PropertyGroup
+          $group.OutputType = 'Exe'
+          $group.ApplicationManifest = ''
+          $group.PublishSingleFile = 'false'
+          $assembly = $qa.CreateElement('AssemblyName'); $assembly.InnerText = 'BatteryDiagnostic.Qa'; [void]$group.AppendChild($assembly)
+          $entry = $qa.CreateElement('StartupObject'); $entry.InnerText = 'BatteryDiagnostic.QaEntry'; [void]$group.AppendChild($entry)
+          $items = $qa.CreateElement('ItemGroup')
+          $compile = $qa.CreateElement('Compile'); $compile.SetAttribute('Include', '../build-qa/QaEntry.cs'); [void]$items.AppendChild($compile)
+          [void]$qa.Project.AppendChild($items)
+          $qa.Save((Join-Path $PWD 'src/BatteryDiagnostic.Qa.csproj'))
+          dotnet build src/BatteryDiagnostic.Qa.csproj -c Release -o qa-bin
+          if ($LASTEXITCODE -ne 0) { throw 'QA build failed' }
+          dotnet qa-bin/BatteryDiagnostic.Qa.dll
+          if ($LASTEXITCODE -ne 0) { throw 'Fixture tests failed' }
+      - name: Upload fixture previews and results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: BatteryDiagnostic-0.7.9-QA
+          path: qa-output/
+          if-no-files-found: warn
       - name: Upload Windows build
         uses: actions/upload-artifact@v4
         with:
-          name: BatteryDiagnostic-0.7.8-win-x64
+          name: BatteryDiagnostic-0.7.9-win-x64
           path: publish-win-x64/
           if-no-files-found: error
           retention-days: 30
