@@ -18,12 +18,13 @@ internal static class QaEntry
             var live=new PerformanceLive(now,3.8,3400,47,new(32UL<<30,17UL<<30,15UL<<30),[new("qa",1.7,751619276,107374182,2640,40)],["CPU temperature source: Intel package DTS / PawnIO"]);
             var disk=new StorageDisk {Index=2,DeviceId="test",Model="Samsung SSD 990 PRO 1TB [TEST DATA]",MediaType="SSD",BusType="NVMe",TotalBytes=1000204886016,HealthCode="NvmeNoCriticalWarning",HealthSource="NvmeHealthLog",NvmeCriticalWarning=0,NvmeAvailableSparePercent=100,NvmeSpareThresholdPercent=10,NvmeMediaErrors=0,PowerOnCount=42,PowerOnHours=5122,RemainingLifePercent=98,RemainingLifeSource="NvmeHealthLog:PercentageUsed",TemperatureC=44.9,Volumes=[new("C:","NTFS",899000000000,444600000000,false)]};
             foreach(var language in Enum.GetValues<UiLanguage>())
-            foreach(var size in new[]{new Size(1000,690),new Size(1120,770)})
+            foreach(var size in new[]{new Size(1000,700),new Size(1120,784)})
             {
-                using var view=new PerformanceDashboard {Size=size};
+                using var host=new Form {ClientSize=size,FormBorderStyle=FormBorderStyle.None,ShowInTaskbar=false};
+                using var view=new PerformanceDashboard {Dock=DockStyle.Fill};host.Controls.Add(view);host.Show();Application.DoEvents();
                 view.SetData(inventory,live,new(now,[disk],[]),language);
                 for(int i=0;i<31;i++)view.AddSample(live with {Timestamp=now.AddSeconds(-60+i*2),CpuUsagePercent=4+(i%7)});
-                _=view.Handle;view.PerformLayout();
+                _=view.Handle;view.PerformLayout();Application.DoEvents();
                 foreach(var c in view.Selectors)if(c.Left<0||c.Right>view.Width||c.Bottom>view.Height)throw new Exception("Selector outside viewport");
                 using var bitmap=new Bitmap(size.Width,size.Height);
                 view.DrawToBitmap(bitmap,new Rectangle(Point.Empty,size));

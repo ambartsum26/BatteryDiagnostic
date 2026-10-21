@@ -179,15 +179,15 @@ internal sealed class PerformanceDashboard : UserControl
     protected override void OnMouseMove(MouseEventArgs e)
     {
         base.OnMouseMove(e);float x=(e.X-viewX)/viewScale,y=(e.Y-viewY)/viewScale;
-        string next=y is >=68 and <=296?(x<500?"cpuTip":"ramTip"):y is >=306 and <=650?(x<500?"gpuTip":"diskTip"):"";
+        string next=y is >=68 and <=296?(x<500?"cpuTip":"ramTip"):y is >=306 and <=662?(x<500?"gpuTip":"diskTip"):"";
         if(next!=tipKey){tipKey=next;tips.SetToolTip(this,next=="diskTip"?DiskExplanation():next=="cpuTip"?CpuExplanation():next.Length>0?T(next):null);}
     }
     protected override void OnResize(EventArgs e){base.OnResize(e);PlaceSelectors();}
     void PlaceSelectors()
     {
         if(modules==null||Width<=0||Height<=0)return;
-        viewScale=Math.Max(.1f,Math.Min(Width/1000f,Height/690f));viewX=(Width-1000*viewScale)/2;viewY=(Height-690*viewScale)/2;
-        Place(modules,520,187,446);Place(gpus,32,343,449);Place(disks,519,343,449);Place(volumes,519,552,449);
+        viewScale=Math.Max(.1f,Math.Min(Width/1000f,Height/700f));viewX=(Width-1000*viewScale)/2;viewY=(Height-700*viewScale)/2;
+        Place(modules,520,187,446);Place(gpus,32,343,449);Place(disks,519,343,449);Place(volumes,519,545,449);
         cpuActivate.SetBounds((int)(viewX+335*viewScale),(int)(viewY+80*viewScale),(int)(146*viewScale),(int)(22*viewScale));
         diskAccess.SetBounds((int)(viewX+815*viewScale),(int)(viewY+318*viewScale),(int)(152*viewScale),(int)(22*viewScale));
         smartDetails.SetBounds((int)(viewX+714*viewScale),(int)(viewY+318*viewScale),(int)(90*viewScale),(int)(22*viewScale));
@@ -208,9 +208,9 @@ internal sealed class PerformanceDashboard : UserControl
         base.OnPaint(e);var g=e.Graphics;g.Clear(Theme.Background);g.SmoothingMode=SmoothingMode.AntiAlias;g.TextRenderingHint=TextRenderingHint.ClearTypeGridFit;
         g.TranslateTransform(viewX,viewY);g.ScaleTransform(viewScale,viewScale);
         DrawText(g,T("heading"),18,10,960,28,20,true);DrawText(g,live!=null&&FreshLive==null?T("liveStale"):T("subtitle"),18,42,960,20,12,false,live!=null&&FreshLive==null?Theme.Warning:Theme.Muted);
-        Card(g,18,68,477,228,T("cpu"));Card(g,505,68,477,228,T("ram"));Card(g,18,306,477,344,T("gpu"));Card(g,505,306,477,344,T("disk"));
+        Card(g,18,68,477,228,T("cpu"));Card(g,505,68,477,228,T("ram"));Card(g,18,306,477,356,T("gpu"));Card(g,505,306,477,356,T("disk"));
         DrawCpu(g);DrawMemory(g);DrawGpu(g);DrawStorage(g);
-        DrawText(g,T("notHealthTest"),18,663,964,24,12,false,Theme.Muted);
+        DrawText(g,T("notHealthTest"),18,676,964,24,12,false,Theme.Muted);
     }
     void Card(Graphics g,float x,float y,float w,float h,string name)
     {
@@ -247,10 +247,10 @@ internal sealed class PerformanceDashboard : UserControl
         double duration=samples.Length>1?Math.Max(0,(samples[^1].Time-samples[0].Time).TotalSeconds):0;
         DrawText(g,PerfText.F(language,"graphWindow",N(Math.Max(60,duration),"0")),32,268,254,22,12,false,Theme.Muted);
         if(!hasPoint)DrawText(g,T("noSamples"),43,201,230,38,10,false,Theme.Muted);
-        Stat(g,T("usage"),Percent(FreshLive?.CpuUsagePercent),298,151);
+        Stat(g,T("usage"),Percent(FreshLive?.CpuUsagePercent),298,151,86,FreshLive?.CpuUsagePercent.HasValue==true?16:12);
         Stat(g,T("temperature"),FreshLive?.CpuTemperatureC is {} temp?N(temp)+" °C":Unknown,391,151,86,
             FreshLive?.CpuTemperatureC.HasValue==true?17:12,FreshLive?.CpuTemperatureC.HasValue==true?Theme.Accent:null);
-        Stat(g,T("frequencyWindows"),FreshLive?.CpuFrequencyMHz is {} freq?N(freq/1000,"0.00")+" GHz":Unknown,298,217);
+        Stat(g,T("frequencyWindows"),FreshLive?.CpuFrequencyMHz is {} freq?N(freq/1000,"0.00")+" GHz":Unknown,298,217,86,FreshLive?.CpuFrequencyMHz.HasValue==true?16:12);
         Stat(g,T("cores"),Number(inventory?.Cpu.PhysicalCores)+" / "+Number(inventory?.Cpu.LogicalProcessors),391,217);
     }
     void DrawMemory(Graphics g)
@@ -300,15 +300,15 @@ internal sealed class PerformanceDashboard : UserControl
         DrawText(g,T("resource")+": "+Resource(d),519,450,449,23,13,true);
         string spare=freshDisk?.NvmeAvailableSparePercent is {} sp?N(sp)+" %":Unknown;
         string errors=Number(freshDisk?.NvmeMediaErrors);
-        DrawText(g,T("spare")+": "+spare,519,477,221,22,12);
-        DrawText(g,T("mediaErrors")+": "+errors,744,477,224,35,12);
+        DrawText(g,T("spareShort")+": "+spare,519,477,221,22,12);
+        DrawText(g,T("mediaErrorsShort")+": "+errors,744,477,224,35,12);
         DrawText(g,T("powerCycles")+": "+Number(freshDisk?.PowerOnCount),519,503,449,22,13);
         DrawText(g,T("powerHours")+": "+Number(freshDisk?.PowerOnHours),519,528,449,22,13);
-        MemoryCell(g,T("total"),DiskBytes(v?.TotalBytes),519,583);
-        MemoryCell(g,T("usedSpace"),DiskBytes(v?.UsedBytes),669,583);
-        MemoryCell(g,T("free"),DiskBytes(v?.FreeBytes),819,583);
-        DrawText(g,T("temperature")+": "+(freshDisk?.TemperatureC is {} temp?N(temp)+" °C":Unknown),519,619,449,22,13,true);
-        DrawText(g,SampleTime(storage?.Timestamp,"diskUpdated"),519,642,449,18,12,false,StorageFresh?Theme.Muted:Theme.Warning);
+        MemoryCell(g,T("total"),DiskBytes(v?.TotalBytes),519,576);
+        MemoryCell(g,T("usedSpace"),DiskBytes(v?.UsedBytes),669,576);
+        MemoryCell(g,T("free"),DiskBytes(v?.FreeBytes),819,576);
+        DrawText(g,T("temperature")+": "+(freshDisk?.TemperatureC is {} temp?N(temp)+" °C":Unknown),519,620,449,22,13,true);
+        DrawText(g,SampleTime(storage?.Timestamp,"diskUpdated"),519,644,449,18,12,false,StorageFresh?Theme.Muted:Theme.Warning);
     }
     static void MemoryCell(Graphics g,string caption,string value,float x,float y)
     {DrawText(g,caption,x,y,145,18,12,false,Theme.Muted);DrawText(g,value,x,y+19,145,22,15,true);}
