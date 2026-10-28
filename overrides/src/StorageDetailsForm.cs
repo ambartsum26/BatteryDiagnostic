@@ -70,7 +70,7 @@ internal sealed class StorageDetailsForm : Form
         void Add(string label,object? value,string unit=""){if(value!=null)table.Rows.Add("—",label,"—","—","—",N(value)+unit);}
         Add(T("nvmeFlags"),disk.NvmeCriticalWarning.HasValue?"0x"+disk.NvmeCriticalWarning.Value.ToString("X2"):null);
         Add(T("spare"),disk.NvmeAvailableSparePercent," %");Add(T("threshold"),disk.NvmeSpareThresholdPercent," %");
-        Add(T("resource"),DiskAssessmentEngine.Evaluate(disk).Remaining," %");Add(T("temperature"),disk.TemperatureC," °C");
+        Add(T("healthPercent"),DiskAssessmentEngine.HealthPercentage(disk)," %");Add(T("temperature"),disk.TemperatureC," °C");
         for(int i=0;i<disk.NvmeSensorTemperaturesC.Count;i++)Add(T("temperature")+" #"+(i+1),disk.NvmeSensorTemperaturesC[i]," °C");
         Add(T("hours"),disk.PowerOnHours);Add(T("powerCycles"),disk.PowerOnCount);
         // The original CDI display labels these figures GB, but uses GiB

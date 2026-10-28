@@ -9,7 +9,10 @@ internal static class QaEntry
         {
             ApplicationConfiguration.Initialize();
             LibCdiStorage.SelfTest();
-            string nativeVersion=LibCdiStorage.CheckNativeApi(Path.Combine(Environment.CurrentDirectory,"publish-win-x64","libcdi.dll"));
+            IntegrationTests.Run();
+            StorageRegressionTests.Run();
+            string nativePath=Path.Combine(Environment.CurrentDirectory,"publish-win-x64","libcdi.dll");
+            string nativeVersion=File.Exists(nativePath)?LibCdiStorage.CheckNativeApi(nativePath):"SKIPPED: optional DLL absent; acquisition disabled";
             Console.WriteLine("Verified libcdi native API version: "+nativeVersion+"; no hardware enumeration");
             PerformanceStorage.SelfTest();DiskAssessmentEngine.SelfTest();PerformanceSensors.SelfTest();
             PerfText.SelfTest();LibrarySensors.SelfTest();PerformanceTemperatures.SelfTest();MemoryManufacturer.SelfTest();

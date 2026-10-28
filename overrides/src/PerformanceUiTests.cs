@@ -5,6 +5,7 @@ internal static class PerformanceUiTests
     internal static void Run()
     {
         static void Check(bool value,string what){if(!value)throw new Exception("Performance UI: "+what);}
+        foreach(var art in Enum.GetValues<HardwareArt>())Check(DevicePulseArt.Available(art),"embedded icon asset: "+art);
         var a=new GpuInventory("gpu-a","Adapter A",GpuKind.Dedicated,8UL<<30,8UL<<30,null);
         var b=new GpuInventory("gpu-b","Adapter B",GpuKind.Integrated,128UL<<20,8UL<<30,null);
         var inv=new PerformanceInventory(new("Test inventory",4,8,3600),new([],null),[a,b],[]);
@@ -16,10 +17,26 @@ internal static class PerformanceUiTests
         // selection rules only; it does not claim that any sensor is supported.
         view.SetData(inv with {Memory=new([new("a",16UL<<30,null,null,null,null,null),new("b",16UL<<30,null,null,null,null,null)],2)},null,storage,UiLanguage.French);
         Check(view.InstalledRamBytes==(32UL<<30),"sum installed RAM modules");
+        Check(!view.Selectors[3].Visible,"explicitly removed volume selector stays hidden");
+
+        Check(view.AccessibleDescription?.Contains(PerfText.Get(UiLanguage.French,"installedRam"))==true,"installed RAM is available to screen readers");
+        var ssdHealth=new StorageDisk {DeviceId="ssd-demo",Model="Test NVMe",MediaType="SSD",RemainingLifePercent=87,RemainingLifeSource="NvmeHealthLog:PercentageUsed"};
+        var hddHealth=new StorageDisk {DeviceId="hdd-demo",Model="Test HDD",MediaType="HDD",HealthCode="ProviderHealthy"};
+        view.SetData(inv,null,new StorageSnapshot(DateTimeOffset.Now,[ssdHealth,hddHealth],[]),UiLanguage.Russian);
+        Check(view.CurrentDiskHealthPercentage==L.Percent(UiLanguage.Russian,87),"SSD percentage appears on the disk card");
+        Check(view.Selectors[2].Items[0]?.ToString()?.Contains("87")==true,"SSD percentage appears in the disk selector");
+        view.Selectors[2].SelectedIndex=1;
+        Check(view.CurrentDiskHealthPercentage==PerfText.Get(UiLanguage.Russian,"hddNoPercent"),"HDD does not receive a fictitious percentage");
+        view.SetData(inv,null,new StorageSnapshot(DateTimeOffset.Now.AddMinutes(-2),[ssdHealth,hddHealth],[]),UiLanguage.Russian);
+        view.Selectors[2].SelectedIndex=0;
+        Check(view.CurrentDiskHealthPercentage==PerfText.Get(UiLanguage.Russian,"storageStale"),"stale SMART percentages are hidden");
         view.SetData(inv with {Memory=new([new("a",null,null,null,null,null,null)],2)},null,storage,UiLanguage.French);
         Check(view.InstalledRamBytes is null,"partial RAM inventory cannot invent total");
         view.SetData(inv with {Memory=new([new("a",ulong.MaxValue,null,null,null,null,null),new("b",1,null,null,null,null,null)],2)},null,storage,UiLanguage.French);
         Check(view.InstalledRamBytes is null,"RAM sum overflow remains unavailable");
+        var benchmarkButton=view.Controls.OfType<Button>().Single(c=>Equals(c.Tag,"cpuBenchmark"));
+        Check(ReferenceEquals(benchmarkButton,view.BenchmarkButton),"benchmark button exists within CPU card");
+        Check(!view.BenchmarkRunning&&view.BenchmarkMilliseconds is null,"benchmark never starts automatically");
         var cpuLink=view.Controls.OfType<LinkLabel>().Single(c=>Equals(c.Tag,"cpu"));
         var diskLink=view.Controls.OfType<LinkLabel>().Single(c=>Equals(c.Tag,"diskAccess"));
         var smartLink=view.Controls.OfType<LinkLabel>().Single(c=>Equals(c.Tag,"smartDetails"));
@@ -59,11 +76,13 @@ internal static class PerformanceUiTests
                 dialog.DrawToBitmap(rendered,new Rectangle(Point.Empty,dialog.Size));
             }
             view.SetData(inv,null,storage,lang);
+            Check(benchmarkButton.Text==PerfText.Get(lang,"benchmarkStart"),"CPU benchmark action translated: "+lang);
             var controls=view.Selectors;
             controls[1].SelectedIndex=1;controls[2].SelectedIndex=1;
             view.SetData(inv with {Gpus=[b,a]},null,storage with {Disks=[diskB,diskA]},lang);
             Check(controls[1].SelectedIndex==0&&controls[2].SelectedIndex==0,"selection follows device identity after reorder");
             Check(controls[3].Text.Contains("D:"),"volume remains attached to selected physical disk");
+            Check(!controls[3].Visible,"removed volume selector must not reappear after switching disks");
             view.SetData(inv,null,storage with {Disks=[diskA with {HealthCode="NoFailurePredicted",FailurePredicted=false}]},lang);
             Check(view.CurrentDiskCondition==PerfText.Get(lang,"insufficient"),"negative failure prediction alone cannot certify health");
             foreach(var (remaining,state) in new (double,string)[]{(100,"lifeNormal"),(11,"lifeNormal"),(10,"lifeLow"),(1,"lifeLow"),(0,"lifeExhausted")})
@@ -95,9 +114,7 @@ internal static class PerformanceUiTests
             view.SetData(null,null,null,lang);
             Check(!view.HasLiveSample,"missing sample remains missing");
             Check(controls.All(c=>c.Text==PerfText.Get(lang,"unknown")&&!c.Enabled),"missing inventory localized without fictitious devices");
-            Check(cpuLink.Text==PerfText.Get(lang,"cpuActivate")&&cpuLink.AccessibleName==PerfText.Get(lang,"cpuActivate")&&cpuLink.Visible,"CPU sensor activation is available when temperature is missing and remains localized");
-            view.SetData(inv,new PerformanceLive(DateTimeOffset.Now,25,3000,45,new(16UL<<30,8UL<<30,8UL<<30),[],[]),storage,lang);
-            Check(!cpuLink.Visible,"CPU activation link yields its place to a real temperature reading");
+            Check(cpuLink.Text==PerfText.Get(lang,"cpuActivate")&&cpuLink.AccessibleName==PerfText.Get(lang,"cpuActivate")&&!cpuLink.Visible,"CPU sensor link remains hidden while preserving localization/accessibility metadata");
             Check(!diskLink.Visible,"drive access link is hidden when no provider reports access denial");
             view.SetData(inv,null,storage with {Diagnostics=["storage:AccessDenied"]},lang);
             Check(diskLink.Text==PerfText.Get(lang,"diskAccess")&&diskLink.AccessibleName==PerfText.Get(lang,"diskAccess"),"drive access link is localized and accessible");
@@ -111,6 +128,7 @@ internal static class PerformanceUiTests
                 Check(cpuLink.Left>=0&&cpuLink.Top>=0&&cpuLink.Right<=size.Width&&cpuLink.Bottom<=size.Height,"CPU activation link fits compact viewport: "+lang);
                 Check(diskLink.Left>=0&&diskLink.Top>=0&&diskLink.Right<=size.Width&&diskLink.Bottom<=size.Height,"drive access link fits compact viewport: "+lang);
                 Check(smartLink.Left>=0&&smartLink.Top>=0&&smartLink.Right<=size.Width&&smartLink.Bottom<=size.Height,"SMART details link fits compact viewport");
+                Check(benchmarkButton.Left>=0&&benchmarkButton.Top>=0&&benchmarkButton.Right<=size.Width&&benchmarkButton.Bottom<=size.Height,"benchmark button stays inside dashboard: "+lang);
                 Check(!view.AutoScroll,"compact dashboard never introduces scrollbars");
                 // Exercise the custom draw path in every language and supported
                 // compact size, without activating a driver or opening a dialog.

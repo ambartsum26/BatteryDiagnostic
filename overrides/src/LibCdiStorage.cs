@@ -37,6 +37,7 @@ internal static class LibCdiStorage
         if(snapshot is null)return "cdiWaiting";
         if(!fresh)return "storageStale";
         var notes=snapshot.Diagnostics;
+        if(notes.Contains("libcdi:ReadOnlyPolicyDisabled"))return "cdiReadOnly";
         if(notes.Contains("libcdi:NotInstalled"))return "cdiMissing";
         if(notes.Contains("libcdi:HashMismatch"))return "cdiRejected";
         if(notes.Contains("libcdi:AdministratorRequired"))return "cdiAdministrator";
@@ -98,6 +99,12 @@ internal static class LibCdiStorage
     }
 
     internal static void Enrich(List<StorageDisk> disks, List<string> notes)
+    {
+        notes.Add("libcdi:ReadOnlyPolicyDisabled");
+    }
+
+    // Retained for decoder/ABI regression checks; not called by acquisition.
+    static void EnrichUnsafeInitializer(List<StorageDisk> disks, List<string> notes)
     {
         if (!OperatingSystem.IsWindows() || !Environment.Is64BitProcess) { notes.Add("libcdi:UnsupportedPlatform"); return; }
         var path = Path.Combine(AppContext.BaseDirectory, Name);

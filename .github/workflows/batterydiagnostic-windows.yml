@@ -1,11 +1,11 @@
-name: Build BatteryDiagnostic Windows EXE
+name: Build DevicePulse 0.9.8 portable administrator EXE
 on:
   push:
-    branches: [main]
+    branches: [codex/devicepulse-0.9.8-admin]
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   windows-publish:
@@ -14,12 +14,12 @@ jobs:
     steps:
       - name: Check out source
         uses: actions/checkout@v4
-      - name: Extract supplied source
+      - name: Extract source and apply portable overlays
         shell: pwsh
         run: |
           Expand-Archive source.zip -DestinationPath source-unpacked
           Copy-Item source-unpacked/BatteryDiagnostic-0.7.8-ONE-CLICK/* . -Recurse -Force
-          Copy-Item overrides/src/* src/ -Force
+          Copy-Item overrides/src/* src/ -Recurse -Force
       - name: Install .NET 10 SDK
         uses: actions/setup-dotnet@v4
         with:
@@ -35,8 +35,20 @@ jobs:
         run: |
           dotnet publish src/BatteryDiagnostic.csproj -c Release -r win-x64 --self-contained true --no-restore -o publish-win-x64 '-p:PublishSingleFile=true' '-p:IncludeNativeLibrariesForSelfExtract=true'
           if ($LASTEXITCODE -ne 0) { throw "dotnet publish exited with $LASTEXITCODE" }
-          if (!(Test-Path 'publish-win-x64/BatteryDiagnostic.exe')) { throw 'BatteryDiagnostic.exe missing' }
-          Write-Host "Built EXE size:" (Get-Item 'publish-win-x64/BatteryDiagnostic.exe').Length
+          if (!(Test-Path 'publish-win-x64/DevicePulse.exe')) { throw 'DevicePulse.exe missing' }
+          Write-Host "Built EXE size:" (Get-Item 'publish-win-x64/DevicePulse.exe').Length
+      - name: Verify administrator manifest in the published EXE
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $mt = Get-ChildItem 'C:/Program Files (x86)/Windows Kits/10/bin' -Filter mt.exe -Recurse -File | Where-Object { $_.FullName -match '\\x64\\mt.exe$' } | Sort-Object FullName -Descending | Select-Object -First 1
+          if (!$mt) { throw 'Windows manifest inspection tool missing' }
+          & $mt.FullName -nologo '-inputresource:publish-win-x64/DevicePulse.exe;#1' '-out:published.manifest'
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot extract the EXE manifest' }
+          [xml]$manifest = Get-Content 'published.manifest'
+          $level = $manifest.SelectSingleNode("//*[local-name()='requestedExecutionLevel']")
+          if (!$level -or $level.level -ne 'requireAdministrator') { throw 'The published EXE does not request administrator privileges' }
+          Write-Host 'Verified requireAdministrator in the actual EXE; production EXE was not launched.'
       - name: Install verified optional libcdi SMART backend
         shell: pwsh
         run: |
@@ -75,7 +87,7 @@ jobs:
           $group.OutputType = 'Exe'
           $group.ApplicationManifest = ''
           $group.PublishSingleFile = 'false'
-          $assembly = $qa.CreateElement('AssemblyName'); $assembly.InnerText = 'BatteryDiagnostic.Qa'; [void]$group.AppendChild($assembly)
+          $group.AssemblyName = 'BatteryDiagnostic.Qa'
           $entry = $qa.CreateElement('StartupObject'); $entry.InnerText = 'BatteryDiagnostic.QaEntry'; [void]$group.AppendChild($entry)
           $items = $qa.CreateElement('ItemGroup')
           $compile = $qa.CreateElement('Compile'); $compile.SetAttribute('Include', '../build-qa/QaEntry.cs'); [void]$items.AppendChild($compile)
@@ -89,13 +101,75 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: BatteryDiagnostic-0.8.0-QA
+          name: DevicePulse-0.9.8-QA
           path: qa-output/
           if-no-files-found: warn
       - name: Upload Windows build
         uses: actions/upload-artifact@v4
         with:
-          name: BatteryDiagnostic-0.8.0-win-x64
+          name: DevicePulse-0.9.8-win-x64
           path: publish-win-x64/
           if-no-files-found: error
           retention-days: 30
+
+      - name: Package portable EXE and complete source
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $binary = 'DevicePulse-0.9.8-win-x64.zip'
+          $source = 'DevicePulse-0.9.8-source.zip'
+          Compress-Archive -Path 'publish-win-x64/*' -DestinationPath $binary -CompressionLevel Optimal
+          [void][IO.Directory]::CreateDirectory((Join-Path $PWD 'source-package/src'))
+          $sourceRoot = (Resolve-Path 'src').Path
+          foreach ($file in Get-ChildItem 'src' -File -Recurse) {
+            $relative = [IO.Path]::GetRelativePath($sourceRoot, $file.FullName)
+            if ($relative -match '(^|[\\/])(bin|obj)[\\/]' -or $relative -match '(^|[\\/])BatteryDiagnostic.Qa.csproj$') { continue }
+            $target = Join-Path (Join-Path $PWD 'source-package/src') $relative
+            [void][IO.Directory]::CreateDirectory([IO.Path]::GetDirectoryName($target))
+            Copy-Item -LiteralPath $file.FullName -Destination $target
+          }
+          Copy-Item 'build-qa' 'source-package/build-qa' -Recurse
+          $buildScript = @'
+          $ErrorActionPreference = 'Stop'
+          dotnet publish "$PSScriptRoot/src/BatteryDiagnostic.csproj" -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o "$PSScriptRoot/app"
+          if ($LASTEXITCODE -ne 0) { throw 'Portable build failed' }
+          '@
+          [IO.File]::WriteAllText((Join-Path $PWD 'source-package/BUILD-PORTABLE.ps1'), $buildScript)
+          $readme = @'
+          DevicePulse 0.9.8 - portable Windows 10/11 x64
+          Reference: DevicePulse-0.9.7-GitHub-source.zip
+          Reference SHA-256: edf1419cbe11ae42396b9dc7f5ee9951bf5b0f64876e367a342e7cb70b63187b
+          This source includes read-only CSMI SMART fixes and improved WMI diagnostics.
+          The EXE requests administrator privileges at startup. No app installation is required.
+          The existing CPU driver implementation is unchanged. The EXE does not install a CPU driver.
+          To build: install the .NET 10 SDK on a development machine, then run BUILD-PORTABLE.ps1.
+          The full project is in src; fixture test entry point is in build-qa/QaEntry.cs.
+          Hardware readings remain unavailable when the controller does not provide valid data.
+          A missing percentage must never be treated as a healthy disk.
+          '@
+          [IO.File]::WriteAllText((Join-Path $PWD 'source-package/README-BUILD.txt'), $readme)
+          Compress-Archive -Path 'source-package/*' -DestinationPath $source -CompressionLevel Optimal
+          $sums = @($binary, $source) | ForEach-Object { (Get-FileHash $_ -Algorithm SHA256).Hash.ToLowerInvariant() + '  ' + $_ }
+          [IO.File]::WriteAllText((Join-Path $PWD 'SHA256SUMS.txt'), ($sums -join [Environment]::NewLine) + [Environment]::NewLine)
+      - name: Upload complete source
+        uses: actions/upload-artifact@v4
+        with:
+          name: DevicePulse-0.9.8-complete-source
+          path: DevicePulse-0.9.8-source.zip
+          if-no-files-found: error
+      - name: Publish permanent portable downloads
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $notes = @'
+          Portable Windows 10/11 x64 build based on the supplied reference DevicePulse 0.9.7 source archive.
+          The published EXE manifest was checked: requireAdministrator. Production EXE was not launched in CI.
+          Decoder regression tests and French/English/Russian UI fixture checks passed.
+          Read-only CSMI SMART fixes and detailed WMI diagnostics are included.
+          Real SMART acquisition through the user's Intel RST controller still requires confirmation.
+          Extract the complete ZIP and start DevicePulse.exe. No application installation is required.
+          '@
+          [IO.File]::WriteAllText((Join-Path $PWD 'release-notes.md'), $notes)
+          gh release create 'v0.9.8' 'DevicePulse-0.9.8-win-x64.zip' 'DevicePulse-0.9.8-source.zip' 'SHA256SUMS.txt' --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --prerelease --title 'DevicePulse 0.9.8 - portable administrator build' --notes-file 'release-notes.md'
+          if ($LASTEXITCODE -ne 0) { throw 'Release publication failed' }
