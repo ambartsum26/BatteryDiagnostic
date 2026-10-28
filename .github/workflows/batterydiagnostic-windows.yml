@@ -41,69 +41,7 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $mt = Get-ChildItem 'C:/Program Files (x86)/Windows Kits/10/bin' -Filter mt.exe -Recurse -File | Where-Object { $_.FullName -match '\\x64\\mt.exe
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $url = 'https://github.com/a1ive/nwinfo/releases/download/v1.6.6/NWinfo.zip'
-          $expected = '52006A9280B53449375FD8D7211A2A8DEF7E287F93028BB469660CE877BD4A2E'
-          Invoke-WebRequest -Uri $url -OutFile nwinfo.zip -ErrorAction Stop
-          $actual = (Get-FileHash nwinfo.zip -Algorithm SHA256).Hash
-          if ($actual -ine $expected) { throw 'NWinfo.zip SHA256 verification failed' }
-          Expand-Archive nwinfo.zip -DestinationPath nwinfo-unpacked
-          $dlls = @(Get-ChildItem nwinfo-unpacked -Filter libcdi.dll -Recurse -File)
-          $x64 = @($dlls | Where-Object {
-            $fs = [IO.File]::OpenRead($_.FullName)
-            try {
-              $br = [IO.BinaryReader]::new($fs)
-              if ($br.ReadUInt16() -ne 0x5A4D) { return $false }
-              [void]$fs.Seek(0x3c, [IO.SeekOrigin]::Begin)
-              $offset = $br.ReadInt32()
-              if ($offset -lt 64 -or $offset -gt $fs.Length - 24) { return $false }
-              [void]$fs.Seek($offset, [IO.SeekOrigin]::Begin)
-              if ($br.ReadUInt32() -ne 0x4550) { return $false }
-              $br.ReadUInt16() -eq 0x8664
-            }
-            finally { $fs.Dispose() }
-          })
-          if ($x64.Count -ne 1) { throw "Expected one x64 libcdi.dll, got $($x64.Count)" }
-          Copy-Item $x64[0].FullName publish-win-x64/libcdi.dll
-          Copy-Item src/ThirdParty/libcdi/LICENSE.txt publish-win-x64/libcdi-LICENSE.txt
-          Remove-Item nwinfo.zip -Force
-          Remove-Item nwinfo-unpacked -Recurse -Force
-      - name: Test decoders and render UI fixtures without elevation
-        shell: pwsh
-        run: |
-          [xml]$qa = Get-Content src/BatteryDiagnostic.csproj
-          $group = $qa.Project.PropertyGroup
-          $group.OutputType = 'Exe'
-          $group.ApplicationManifest = ''
-          $group.PublishSingleFile = 'false'
-          $group.AssemblyName = 'BatteryDiagnostic.Qa'
-          $entry = $qa.CreateElement('StartupObject'); $entry.InnerText = 'BatteryDiagnostic.QaEntry'; [void]$group.AppendChild($entry)
-          $items = $qa.CreateElement('ItemGroup')
-          $compile = $qa.CreateElement('Compile'); $compile.SetAttribute('Include', '../build-qa/QaEntry.cs'); [void]$items.AppendChild($compile)
-          [void]$qa.Project.AppendChild($items)
-          $qa.Save((Join-Path $PWD 'src/BatteryDiagnostic.Qa.csproj'))
-          dotnet build src/BatteryDiagnostic.Qa.csproj -c Release -o qa-bin
-          if ($LASTEXITCODE -ne 0) { throw 'QA build failed' }
-          dotnet qa-bin/BatteryDiagnostic.Qa.dll
-          if ($LASTEXITCODE -ne 0) { throw 'Fixture tests failed' }
-      - name: Upload fixture previews and results
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: DevicePulse-0.9.8-QA
-          path: qa-output/
-          if-no-files-found: warn
-      - name: Upload Windows build
-        uses: actions/upload-artifact@v4
-        with:
-          name: DevicePulse-0.9.8-win-x64
-          path: publish-win-x64/
-          if-no-files-found: error
-          retention-days: 30
- } | Sort-Object FullName -Descending | Select-Object -First 1
+          $mt = Get-ChildItem 'C:/Program Files (x86)/Windows Kits/10/bin' -Filter mt.exe -Recurse -File | Where-Object { $_.FullName -match '\\x64\\mt.exe$' } | Sort-Object FullName -Descending | Select-Object -First 1
           if (!$mt) { throw 'Windows manifest inspection tool missing' }
           & $mt.FullName -nologo '-inputresource:publish-win-x64/DevicePulse.exe;#1' '-out:published.manifest'
           if ($LASTEXITCODE -ne 0) { throw 'Cannot extract the EXE manifest' }
