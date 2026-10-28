@@ -22,6 +22,16 @@ internal static class InstallerTests
         Check(Equals(Call("ClassifyExitCode",1602),"Cancelled")&&Equals(Call("ClassifyExitCode",1223),"Cancelled"),"cancellation never treated as installed");
         Check(Equals(Call("ClassifyExitCode",5),"Failed"),"installation failure remains failure");
         Check((bool)Call("HasVerifiedPayload")!,"embedded official installer SHA256 verified");
+        string verificationDirectory=Path.Combine(Path.GetTempPath(),"DevicePulse-Signature-Test-"+Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(verificationDirectory);
+        try
+        {
+            string verificationPath=Path.Combine(verificationDirectory,"PawnIO_setup.exe");
+            File.WriteAllBytes(verificationPath,(byte[])Call("ReadPayload")!);
+            using var readOnly=new FileStream(verificationPath,FileMode.Open,FileAccess.Read,FileShare.Read);
+            Call("VerifySignature",verificationPath); // Signature check only. Never run setup in CI.
+        }
+        finally{Directory.Delete(verificationDirectory,true);}
         using var dialog=(Form)Call("BuildDialog")!;
         dialog.Show();dialog.PerformLayout();
         var layout=dialog.Controls.OfType<TableLayoutPanel>().Single();layout.PerformLayout();
