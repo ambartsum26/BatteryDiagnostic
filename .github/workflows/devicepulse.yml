@@ -1,4 +1,4 @@
-name: DevicePulse 0.9.7 Windows x64
+name: DevicePulse 0.9.7 Windows x64 Administrator
 on:
   push:
     branches: [build/devicepulse-0.9.7-20261028]
@@ -66,6 +66,39 @@ jobs:
           if ($p.ExitCode -ne 0) { throw "Self-tests failed: $($p.ExitCode)" }
           if (!(Test-Path "$out/self-test.txt")) { throw 'Test result missing' }
           Get-Content "$out/self-test.txt"
+      - name: Publish production EXE requiring administrator
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          [xml]$manifest = Get-Content src/app.manifest
+          $level = $manifest.SelectSingleNode("//*[local-name()='requestedExecutionLevel']")
+          if (!$level -or $level.level -ne 'asInvoker') { throw 'Unexpected original privilege level' }
+          $level.SetAttribute('level', 'requireAdministrator')
+          $manifest.Save((Join-Path $PWD 'src/app.manifest'))
+          dotnet publish src/BatteryDiagnostic.csproj -c Release -r win-x64 --self-contained true -o publish-win-x64 '-p:PublishSingleFile=true' '-p:IncludeNativeLibrariesForSelfExtract=true'
+          if ($LASTEXITCODE -ne 0) { throw "Admin publish failed: $LASTEXITCODE" }
+          $mt = Get-ChildItem 'C:/Program Files (x86)/Windows Kits/10/bin' -Filter mt.exe -Recurse -File | Where-Object { $_.FullName -match '\\x64\\mt.exe
+        shell: pwsh
+        run: |
+          Copy-Item src/ThirdPartyNotices.txt publish-win-x64/ThirdPartyNotices.txt
+          'Распакуйте архив целиком и запустите DevicePulse.exe. Windows запросит права администратора (UAC). Подтвердите запрос. .NET включён. Для температуры CPU через PawnIO требуется отдельно установленный официальный драйвер; программа его автоматически не устанавливает.' | Set-Content publish-win-x64/README-RU.txt
+          'DevicePulse 0.9.7 win-x64. .NET runtime included. Synthetic self-tests executed before changing manifest to requireAdministrator; compiled production manifest verified; physical hardware not validated. CPU temperature via PawnIO requires separately installed official signed driver and elevation. No driver is installed by this package.' | Set-Content publish-win-x64/BUILD-INFO.txt
+          Get-ChildItem publish-win-x64 -File | Where-Object Name -ne SHA256SUMS.txt | ForEach-Object { $h = Get-FileHash $_.FullName -Algorithm SHA256; "$($h.Hash)  $($_.Name)" } | Set-Content publish-win-x64/SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: DevicePulse-0.9.7-Windows-x64-Admin
+          path: publish-win-x64/
+          if-no-files-found: error
+ } | Sort-Object FullName -Descending | Select-Object -First 1
+          if (!$mt) { throw 'Windows manifest inspection tool missing' }
+          & $mt.FullName -nologo '-inputresource:publish-win-x64/DevicePulse.exe;#1' '-out:published.manifest'
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot extract production manifest' }
+          [xml]$actual = Get-Content published.manifest
+          $actualLevel = $actual.SelectSingleNode("//*[local-name()='requestedExecutionLevel']")
+          if (!$actualLevel -or $actualLevel.level -ne 'requireAdministrator') { throw 'Production EXE is not requireAdministrator' }
+          Copy-Item published.manifest publish-win-x64/published.manifest
+          'PASS: requireAdministrator verified in compiled DevicePulse.exe. Production EXE not launched in CI; synthetic tests passed on the same source with asInvoker before republishing.' | Set-Content publish-win-x64/manifest-verification.txt
       - name: Package portable build
         shell: pwsh
         run: |
