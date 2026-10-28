@@ -15,7 +15,7 @@ internal static class InstallerTests
             Check(!Offer(true,true,state,[]),"existing or unverified driver never replaced: "+state);
         Check(!Offer(false,true,CpuTemperatureState.DriverNotInstalled,[]),"unsupported processor is not offered a driver");
         Check(!Offer(true,false,CpuTemperatureState.DriverNotInstalled,[]),"non-elevated process cannot install driver");
-        foreach(string argument in new[]{"--self-test","--upgrade-test","--installer-self-test","--ui-smoke","--pawnio-status","--performance-probe","--probe"})
+        foreach(string argument in new[]{"--self-test","--upgrade-test","--installer-self-test","--audit-self-test","--ui-smoke","--pawnio-status","--performance-probe","--probe"})
             Check(!Offer(true,true,CpuTemperatureState.DriverNotInstalled,[argument]),"diagnostic path cannot install: "+argument);
         Check(Equals(Call("ClassifyExitCode",0),"Ready"),"zero installer exit code");
         Check(Equals(Call("ClassifyExitCode",3010),"RestartRequired"),"restart required is distinct from ready");

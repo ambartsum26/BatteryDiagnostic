@@ -38,7 +38,7 @@ internal static class L
         ["system"] = ("Système", "System", "Система"),
         ["battery"] = ("Batterie {0}", "Battery {0}", "Батарея {0}"),
         ["declared"] = ("Capacité nominale", "Design capacity", "Заявленная ёмкость"),
-        ["full"] = ("Capacité actuelle", "Current capacity", "Текущая ёмкость"),
+        ["full"] = ("Capacité à pleine charge", "Full-charge capacity", "Ёмкость при полном заряде"),
         ["health"] = ("État de la batterie", "Battery condition", "Состояние аккумулятора"),
         ["gradeCritical"] = ("Critique", "Critical", "Критическое"),
         ["gradeMedium"] = ("Moyen", "Moderate", "Среднее"),

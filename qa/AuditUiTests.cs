@@ -8,14 +8,13 @@ internal static class AuditUiTests
         var failures=new List<string>();
         void Check(bool value,string reason){if(!value)failures.Add(reason);}
         object Field(object target,string name)=>target.GetType().GetField(name,BindingFlags.Instance|BindingFlags.NonPublic)!.GetValue(target)!;
-        IEnumerable<Control> All(Control root)=>root.Controls.Cast<Control>().SelectMany(c=>new[]{c}.Concat(All(c)));
         void Tick(PerformanceDashboard view)=>typeof(System.Windows.Forms.Timer).GetMethod("OnTick",BindingFlags.Instance|BindingFlags.NonPublic)!.Invoke(Field(view,"freshnessTimer"),[EventArgs.Empty]);
         foreach(var lang in Enum.GetValues<UiLanguage>())
         {
             string T(string key)=>PerfText.Get(lang,key);
             using var view=new PerformanceDashboard{Size=new Size(1000,710)};
             var inv=new PerformanceInventory(new("Audit CPU",4,8,3600),new([new("DIMM",16UL<<30,3200,3200,"Audit",null,null)],1),[new("gpu","Audit GPU",GpuKind.Dedicated,8UL<<30,null,null)],[]);
-            var live=new PerformanceLive(DateTimeOffset.Now,37,3600,63,new(16UL<<30,5UL<<30,11UL<<30),[new("gpu",29,2UL<<30,1UL<<30,47,1500)],[]);
+            var live=new PerformanceLive(DateTimeOffset.Now,37,3600,63,new(16UL<<30,5UL<<30,11UL<<30),[new("gpu",29,2UL<<30,1UL<<30,1500,47)],[]);
             var disk=new StorageDisk{DeviceId="audit",Model="Audit SSD",MediaType="SSD",RemainingLifePercent=87,RemainingLifeSource="TestFixture",HealthCode="Warning",TemperatureC=43,Volumes=[new("C:","NTFS",100000000000,23000000000,false)]};
             var storage=new StorageSnapshot(DateTimeOffset.Now,[disk],[]);
             view.SetData(inv,live,storage,lang);

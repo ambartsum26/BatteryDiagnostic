@@ -8,7 +8,7 @@ internal static class PawnIoInstaller
 {
     internal const string SetupSha256="1F519A22E47187F70A1379A48CA604981C4FCF694F4E65B734AAA74A9FBA3032";
     const string Resource="DevicePulse.PawnIO.Setup.2.2.0";
-    static readonly string[] DiagnosticArguments=["--self-test","--upgrade-test","--installer-self-test","--ui-smoke","--pawnio-status","--performance-probe","--probe"];
+    static readonly string[] DiagnosticArguments=["--self-test","--upgrade-test","--installer-self-test","--audit-self-test","--ui-smoke","--pawnio-status","--performance-probe","--probe"];
     static int offered;
 
     internal static bool ShouldOffer(bool supported,bool administrator,CpuTemperatureState driver,string[] args)=>

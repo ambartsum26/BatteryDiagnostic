@@ -21,6 +21,7 @@ internal sealed class PerformanceDashboard : UserControl
     StorageSnapshot? storage;
     UiLanguage language=UiLanguage.French;
     bool updating;
+    bool lastLiveFresh,lastStorageFresh;
     string moduleKey="",gpuKey="",diskKey="",volumeKey="",tipKey="";
     float viewScale=1,viewX,viewY;
     string T(string key)=>PerfText.Get(language,key);
@@ -101,6 +102,7 @@ internal sealed class PerformanceDashboard : UserControl
         benchmarkButton.AccessibleName=benchmarkButton.Text;
         benchmarkButton.AccessibleDescription=BenchmarkStatusText()+". "+T("benchmarkTip");
         tips.SetToolTip(benchmarkButton,T("benchmarkTip"));
+        UpdateAccessibleSummary();
     }
     async void BenchmarkButtonClicked(object? sender,EventArgs e)
     {
@@ -160,7 +162,12 @@ internal sealed class PerformanceDashboard : UserControl
     internal PerformanceDashboard()
     {
         DoubleBuffered=true;ResizeRedraw=true;BackColor=Theme.Background;AutoScroll=false;
-        freshnessTimer.Tick+=(_,_)=>Invalidate();freshnessTimer.Start();
+        freshnessTimer.Tick+=(_,_)=>
+        {
+            if(lastLiveFresh!=(FreshLive!=null)||lastStorageFresh!=StorageFresh)
+                SetData(inventory,live,storage,language);
+            else Invalidate();
+        };freshnessTimer.Start();
         Controls.AddRange([modules,gpus,disks,volumes,cpuActivate,diskAccess,smartDetails,benchmarkButton]);
         benchmarkButton.Click+=BenchmarkButtonClicked;
         UpdateBenchmarkButton();
@@ -171,7 +178,7 @@ internal sealed class PerformanceDashboard : UserControl
         {
             if(updating)return;
             if(c==disks)UpdateVolumes();
-            UpdateTips();Invalidate();
+            UpdateAccessibleSummary();UpdateTips();Invalidate();
         };
     }
     internal void AddSample(PerformanceLive sample)
@@ -200,8 +207,51 @@ internal sealed class PerformanceDashboard : UserControl
         UpdateBenchmarkButton();
         diskAccess.Visible=!PerformanceCpuTemperature.IsAdministrator&&(drives?.Diagnostics.Concat(drives.Disks.SelectMany(d=>d.Diagnostics)).Any(d=>d.Contains("AccessDenied",StringComparison.Ordinal))??false);
         AccessibleName=T("heading");
-        AccessibleDescription=T("cpu")+": "+(inv?.Cpu.Model??Unknown)+"; "+T("installedRam")+": "+Memory(InstalledRamBytes)+"; "+T("notHealthTest");
+        lastLiveFresh=FreshLive!=null;lastStorageFresh=StorageFresh;
+        UpdateAccessibleSummary();
         UpdateTips();Invalidate();
+    }
+    void UpdateAccessibleSummary()
+    {
+        var sample=FreshLive;var gpu=SelectedGpu;
+        var gpuLive=sample?.Gpus.FirstOrDefault(v=>v.Id==gpu?.Id);
+        var disk=StorageFresh?SelectedDisk:null;var volume=StorageFresh?SelectedVolume:null;
+        ulong? gpuFree=gpu?.DedicatedMemoryBytes is {} total&&gpuLive?.DedicatedUsedBytes is {} used&&used<=total?total-used:null;
+        string Temperature(double? value)=>value.HasValue?N(value.Value)+" °C":Unknown;
+        string Frequency(double? value)=>value.HasValue?N(value.Value)+" "+T("mhz"):Unknown;
+        var lines=new List<string>
+        {
+            T("cpu")+": "+(inventory?.Cpu.Model??Unknown),
+            T("usage")+": "+Percent(sample?.CpuUsagePercent),
+            T("temperature")+": "+Temperature(sample?.CpuTemperatureC),
+            T("frequencyWindows")+": "+Frequency(sample?.CpuFrequencyMHz),
+            T("cores")+": "+Number(inventory?.Cpu.PhysicalCores)+" / "+Number(inventory?.Cpu.LogicalProcessors),
+            T("installedRam")+": "+Memory(InstalledRamBytes),
+            T("used")+": "+Memory(sample?.Memory.UsedBytes),
+            T("available")+": "+Memory(sample?.Memory.AvailableBytes),
+            T("modules")+": "+Number(inventory?.Memory.Modules.Count)+" / "+Number(inventory?.Memory.TotalSlots),
+            T("module")+": "+modules.Text,
+            T("memoryType")+": "+(SelectedModule?.MemoryType??Unknown),
+            T("configuredSpeed")+": "+(SelectedModule?.ConfiguredSpeedMTs is {} speed?N(speed,"0")+" "+T("mt"):SelectedModule?.ConfiguredClockMHz is {} clock?N(clock,"0")+" "+T("mhz"):Unknown),
+            T("manufacturer")+": "+(MemoryManufacturer.Display(SelectedModule?.Manufacturer)??Unknown),
+            T("gpu")+": "+(gpu?.Model??Unknown),
+            T("usage")+": "+Percent(gpuLive?.UsagePercent),
+            T("temperature")+": "+Temperature(gpuLive?.TemperatureC),
+            T("frequencyDriver")+": "+Frequency(gpuLive?.FrequencyMHz),
+            T("videoMemory")+"; "+T("total")+": "+Memory(gpu?.DedicatedMemoryBytes)+"; "+T("used")+": "+Memory(gpuLive?.DedicatedUsedBytes)+"; "+T("free")+": "+Memory(gpuFree),
+            T("sharedMemory")+": "+Memory(gpuLive?.SharedUsedBytes),
+            T("disk")+": "+(SelectedDisk?.Model??Unknown),
+            T("health")+": "+Health(SelectedDisk),
+            T("healthPercent")+": "+HealthPercentText(SelectedDisk),
+            T("temperature")+": "+Temperature(disk?.TemperatureC),
+            T("powerCycles")+": "+Number(disk?.PowerOnCount),
+            T("powerHours")+": "+Number(disk?.PowerOnHours),
+            T("total")+": "+DiskBytes(volume?.TotalBytes)+"; "+T("usedSpace")+": "+DiskBytes(volume?.UsedBytes)+"; "+T("free")+": "+DiskBytes(volume?.FreeBytes),
+            T("notHealthTest")
+        };
+        if(live!=null&&sample==null)lines.Insert(0,T("liveStale"));
+        if(BenchmarkStatusText() is {Length:>0} result)lines.Add(result);
+        AccessibleDescription=string.Join(Environment.NewLine,lines);
     }
     void Populate(ComboBox combo,ref string key,string[] values,string[] identities)
     {
@@ -282,6 +332,7 @@ internal sealed class PerformanceDashboard : UserControl
         tips.SetToolTip(gpus,(SelectedGpu?.Model??Unknown)+Environment.NewLine+T("gpuTip")+Environment.NewLine+T("gpuLoadBasis"));
         tips.SetToolTip(disks,DiskExplanation());
         tips.SetToolTip(volumes,SelectedVolume?.SharedAcrossDisks==true?T("sharedVolume")+Environment.NewLine+T("diskTip"):T("diskTip"));
+        tips.SetToolTip(this,tipKey=="diskTip"?DiskExplanation():tipKey=="cpuTip"?CpuExplanation():tipKey.Length>0?T(tipKey):null);
     }
     string CpuExplanation()
     {
@@ -426,7 +477,7 @@ internal sealed class PerformanceDashboard : UserControl
     }
     void DrawStorage(Graphics g)
     {
-        var d=SelectedDisk;var v=SelectedVolume;var freshDisk=StorageFresh?d:null;
+        var d=SelectedDisk;var v=StorageFresh?SelectedVolume:null;var freshDisk=StorageFresh?d:null;
         string type=d==null?Unknown:d.BusType=="NVMe"?"NVMe · "+DiskBytes(d.TotalBytes):(d.MediaType=="Unknown"?T("typeUnknown"):d.MediaType=="NonRotating"?T("nonRotating"):d.MediaType)+" · "+(d.BusType??Unknown)+" · "+DiskBytes(d.TotalBytes);
         DrawText(g,type,519,379,449,20,12,false,Theme.Muted);
         double? life=freshDisk!=null?DiskAssessmentEngine.HealthPercentage(freshDisk):null;
@@ -440,12 +491,13 @@ internal sealed class PerformanceDashboard : UserControl
         using(var pctBrush=new SolidBrush(color))
         using(var pctAlignment=new StringFormat {Alignment=StringAlignment.Center,LineAlignment=StringAlignment.Center,Trimming=StringTrimming.EllipsisCharacter})
             g.DrawString(HealthPercentText(d),pctFont,pctBrush,new RectangleF(524,406,104,104),pctAlignment);
-        DrawText(g,T("temperature"),654,410,310,21,12,false,Theme.Muted);
-        DrawText(g,freshDisk?.TemperatureC is {} temp?N(temp)+" °C":Unknown,654,432,310,30,18,true);
-        DrawText(g,T("powerCycles"),654,474,145,20,12,false,Theme.Muted);
-        DrawText(g,Number(freshDisk?.PowerOnCount),654,495,145,24,15,true);
-        DrawText(g,T("powerHours"),814,474,150,20,12,false,Theme.Muted);
-        DrawText(g,Number(freshDisk?.PowerOnHours),814,495,150,24,15,true);
+        DrawText(g,Health(d),654,400,310,20,12,true,assessment?.Color??Theme.Muted);
+        DrawText(g,T("temperature"),654,426,310,20,12,false,Theme.Muted);
+        DrawText(g,freshDisk?.TemperatureC is {} temp?N(temp)+" °C":Unknown,654,447,310,26,18,true);
+        DrawText(g,T("powerCycles"),654,480,145,20,12,false,Theme.Muted);
+        DrawText(g,Number(freshDisk?.PowerOnCount),654,501,145,24,15,true);
+        DrawText(g,T("powerHours"),814,480,150,20,12,false,Theme.Muted);
+        DrawText(g,Number(freshDisk?.PowerOnHours),814,501,150,24,15,true);
         DrawSeparator(g,520,533,447);
         MemoryCell(g,T("total"),DiskBytes(v?.TotalBytes),520,545);
         MemoryCell(g,T("usedSpace"),DiskBytes(v?.UsedBytes),669,545);

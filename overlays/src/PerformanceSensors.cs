@@ -46,7 +46,6 @@ internal static class PerformanceSensors
     static long nextGpuPoll;
     static int gpuPollRunning;
     static readonly Regex LuidPattern = new(@"luid_0x([0-9a-f]{1,8})_0x([0-9a-f]{1,8})", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
-    static readonly Regex EnginePattern = new(@"(?:^|_)eng_(\d+)(?:_|$)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 
     internal static PerformanceInventory ReadInventory()
     {
@@ -392,6 +391,12 @@ internal static class PerformanceSensors
             return WithThermals(adapters.Select(a=>new GpuLive(a.Id,null,null,null,null,null)));
         var memory = QueryWmi("SELECT Name,DedicatedUsage,SharedUsage FROM Win32_PerfFormattedData_GPUPerformanceCounters_GPUAdapterMemory", ["Name", "DedicatedUsage", "SharedUsage"], 128);
         var engine = QueryWmi("SELECT Name,UtilizationPercentage FROM Win32_PerfFormattedData_GPUPerformanceCounters_GPUEngine", ["Name", "UtilizationPercentage"], 8192);
+        return WithThermals(AggregateWmiGpu(adapters, memory, engine));
+    }
+
+    internal static GpuLive[] AggregateWmiGpu(IReadOnlyList<GpuInventory> adapters,
+        IReadOnlyList<Dictionary<string, object?>> memory, IReadOnlyList<Dictionary<string, object?>> engine)
+    {
         var result = new List<GpuLive>();
         foreach (var adapter in adapters)
         {
@@ -402,23 +407,14 @@ internal static class PerformanceSensors
             // show unknown for impossible values rather than claiming negative free memory.
             if (adapter.DedicatedMemoryBytes is { } limit && dedicated > limit) dedicated = null;
             if (adapter.SharedMemoryBytes is { } sharedLimit && shared > sharedLimit) shared = null;
-            var engines = new Dictionary<string, double>();
-            foreach (var row in engine)
-            {
-                string? name = Clean(row.GetValueOrDefault("Name"));
-                if (name == null || CounterGpuId(name) != adapter.Id) continue;
-                var engineMatch = EnginePattern.Match(name);
-                double? value = ValidPercentage(row.GetValueOrDefault("UtilizationPercentage"));
-                if (!engineMatch.Success || value == null) continue;
-                // Physical node matters on a linked adapter. Keep each engine distinct.
-                string physical = Regex.Match(name, @"phys_\d+", RegexOptions.IgnoreCase).Value;
-                string key = physical + ":" + engineMatch.Groups[1].Value;
-                engines[key] = engines.GetValueOrDefault(key) + value.Value;
-            }
-            double? usage = engines.Count != 0 ? Math.Clamp(engines.Values.Max(), 0, 100) : null;
+            // Share strict process/physical-engine validation with the native path.
+            var readings = engine.Select(row => new PerformanceGpuCounters.Reading(
+                Clean(row.GetValueOrDefault("Name")) ?? "",
+                ValidPercentage(row.GetValueOrDefault("UtilizationPercentage")), null)).ToArray();
+            double? usage = PerformanceGpuCounters.BusiestEngine(readings, adapter.Id);
             result.Add(new(adapter.Id, usage, dedicated, shared, null, null));
         }
-        return WithThermals(result);
+        return result.ToArray();
     }
 
     static ulong? SumCounters(Dictionary<string, object?>[] rows, string field)
@@ -452,35 +448,52 @@ internal static class PerformanceSensors
             service = ((dynamic)locator!).ConnectServer(".", @"root\cimv2", null, null, null, null, 0x80, null);
             set = ((dynamic)service).ExecQuery(query, "WQL", 0x30, null);
             enumerator = ((IEnumerable)set).GetEnumerator();
-            while (enumerator.MoveNext())
+            IEnumerable<Dictionary<string, object?>> EnumerateRows()
             {
-                object item = enumerator.Current;
-                try
+                while (enumerator.MoveNext())
                 {
-                    var row = new Dictionary<string, object?>();
-                    foreach (string field in fields)
+                    object item = enumerator.Current;
+                    try
                     {
-                        object? properties = null, property = null;
-                        try
+                        var row = new Dictionary<string, object?>();
+                        foreach (string field in fields)
                         {
-                            properties = ((dynamic)item).Properties_;
-                            property = ((dynamic)properties).Item(field, 0);
-                            row[field] = ((dynamic)property).Value;
+                            object? properties = null, property = null;
+                            try
+                            {
+                                properties = ((dynamic)item).Properties_;
+                                property = ((dynamic)properties).Item(field, 0);
+                                row[field] = ((dynamic)property).Value;
+                            }
+                            catch { row[field] = null; }
+                            finally { ReleaseCom(property); ReleaseCom(properties); }
                         }
-                        catch { row[field] = null; }
-                        finally { ReleaseCom(property); ReleaseCom(properties); }
+                        yield return row;
                     }
-                    rows.Add(row);
+                    finally { ReleaseCom(item); }
                 }
-                finally { ReleaseCom(item); }
-                // A partial list can understate per-GPU usage. Discard it rather than
-                // showing an apparently precise total after a time/row budget expires.
-                if (rows.Count >= rowLimit || Environment.TickCount64 > deadline) { rows.Clear(); break; }
             }
+            rows = CollectWmiRows(EnumerateRows(), rowLimit, () => Environment.TickCount64 > deadline);
         }
-        catch { }
+        catch { rows.Clear(); }
         finally { (enumerator as IDisposable)?.Dispose(); ReleaseCom(enumerator); ReleaseCom(set); ReleaseCom(service); ReleaseCom(locator); }
         return rows;
+    }
+
+    internal static List<Dictionary<string, object?>> CollectWmiRows(
+        IEnumerable<Dictionary<string, object?>> source, int rowLimit, Func<bool> expired)
+    {
+        var rows = new List<Dictionary<string, object?>>();
+        try
+        {
+            foreach (var row in source)
+            {
+                rows.Add(row);
+                if (rows.Count >= rowLimit || expired()) return [];
+            }
+            return rows;
+        }
+        catch { return []; } // A failed enumeration cannot certify an adapter-wide total.
     }
 
     static void ReleaseCom(object? value)

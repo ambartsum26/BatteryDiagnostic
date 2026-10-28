@@ -78,6 +78,22 @@ internal static class AuditHealthTests
             Check(result.StateKey == "dataInvalid" && result.Color == Theme.Muted,
                 "Independent lifetime disagreement must be a visible invalid-data condition");
         });
+        Case("Preserve failure precedence and valid data", () =>
+        {
+            var invalid = new StorageDisk { HealthCode = "ProviderHealthy", Diagnostics = ["ata-life:ConflictingSources"] };
+            foreach (var disk in new[] { invalid with { FailurePredicted = true }, invalid with { NvmeCriticalWarning = 1 },
+                invalid with { AtaPrefailureThresholdExceeded = true }, invalid with { HealthCode = "Unhealthy" } })
+                Check(DiskAssessmentEngine.Evaluate(disk).Color == Theme.Danger,
+                    "Lifetime uncertainty cannot hide a confirmed critical failure");
+            var valid = Cdi(new StorageDisk { Index = 0, Model = "Samsung SSD 850 EVO 250GB", MediaType = "SSD",
+                HealthCode = "ProviderHealthy", RemainingLifePercent = 95, RemainingLifeSource = "AtaSmart:SamsungSataConsumerB1" },
+                95, [new StorageSmartAttribute(0xB1, 95, 95, 0, 5, false)]);
+            Check(DiskAssessmentEngine.HealthPercentage(valid) == 95 && DiskAssessmentEngine.Evaluate(valid).Color == Theme.Accent,
+                "Agreeing independent lifetime sources remain available");
+            var negative = Toolkit(new StorageDisk { HealthCode = "Unknown" }, new StorageDevice { PredictsFailure = false });
+            Check(DiskAssessmentEngine.Evaluate(negative).Color == Theme.Muted,
+                "Negative fallback prediction alone must not invent healthy status");
+        });
         if (failures.Count > 0) throw new Exception("Health audit regression failures (" + failures.Count + "): " + string.Join("; ", failures));
     }
 }
