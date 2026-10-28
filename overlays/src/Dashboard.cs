@@ -34,9 +34,11 @@ internal sealed class Dashboard : UserControl
         root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));
         root.RowStyles.Add(new RowStyle(SizeType.Absolute,42));
         root.RowStyles.Add(new RowStyle(SizeType.Absolute,29));
-        root.RowStyles.Add(new RowStyle(SizeType.Percent,47));
-        root.RowStyles.Add(new RowStyle(SizeType.Percent,25));
-        root.RowStyles.Add(new RowStyle(SizeType.Percent,28));
+        // Capacity captions and 19pt Wh values need a guaranteed readable
+        // region; metadata can scroll when the window is compact.
+        root.RowStyles.Add(new RowStyle(SizeType.Percent,65));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute,164));
+        root.RowStyles.Add(new RowStyle(SizeType.Percent,35));
         root.RowStyles.Add(new RowStyle(SizeType.Absolute,28));
         root.RowStyles.Add(new RowStyle(SizeType.Absolute,26));
         heading.TextAlign=ContentAlignment.MiddleLeft;

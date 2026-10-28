@@ -408,7 +408,17 @@ internal sealed class PerformanceDashboard : UserControl
         g.DrawString(text,font,brush,new RectangleF(x,y,w,h),format);
     }
     void Stat(Graphics g,string label,string value,float x,float y,float w=86,float valueSize=16,Color? valueColor=null)
-    {DrawText(g,label,x,y,w,27,12,false,Theme.Muted);DrawText(g,value,x,y+26,w,29,valueSize,true,valueColor);}
+    {
+        DrawText(g,label,x,y,w,27,12,false,Theme.Muted);
+        float fitted=valueSize;
+        while(fitted>12)
+        {
+            using var font=new Font("Segoe UI Semibold",fitted,FontStyle.Regular,GraphicsUnit.Pixel);
+            if(g.MeasureString(value,font).Width<=w-2)break;
+            fitted=Math.Max(12,fitted-.5f);
+        }
+        DrawText(g,value,x,y+26,w,29,fitted,true,value==Unknown?Theme.Muted:valueColor);
+    }
     void DrawCpu(Graphics g)
     {
         DrawText(g,inventory?.Cpu.Model??Unknown,32,112,447,23,12,true);

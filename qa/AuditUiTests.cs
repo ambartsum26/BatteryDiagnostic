@@ -41,6 +41,32 @@ internal static class AuditUiTests
 
             using var battery=new Dashboard{Size=new Size(1000,652)};
             var reading=new Reading{Design=60000,Full=54000,Capacity=27000,State=1};
+            foreach(var window in new[]{new Size(1000,740),new Size(1044,788)})
+            {
+                using var host=new Form{ClientSize=new Size(window.Width,window.Height-88)};
+                using var layoutView=new Dashboard{Dock=DockStyle.Fill};
+                host.Controls.Add(layoutView);_=host.Handle;_=layoutView.Handle;
+                var fixture=new Reading{Design=60000,Full=54000,Capacity=27000,State=1};
+                layoutView.SetData(new([fixture],null,DateTimeOffset.Now,"Audit"),fixture,lang,"",true);
+                void Layout(Control control){control.PerformLayout();foreach(Control child in control.Controls)Layout(child);}
+                Layout(host);
+                foreach(var name in new[]{"declaredCaption","fullCaption","declaredValue","fullValue"})
+                {
+                    var label=(Label)Field(layoutView,name);
+                    var preferred=label.GetPreferredSize(new Size(label.ClientSize.Width,0));
+                    Check(label.ClientSize.Height>=preferred.Height,"capacity text height "+name+" / "+window+" / "+lang);
+                    Rectangle visible=label.ClientRectangle;
+                    Control current=label;
+                    while(current.Parent is {} parent)
+                    {
+                        visible.Offset(current.Left,current.Top);
+                        visible=Rectangle.Intersect(visible,parent.ClientRectangle);
+                        current=parent;
+                    }
+                    Check(visible.Width>=label.ClientSize.Width&&visible.Height>=label.ClientSize.Height,"capacity ancestor clipping "+name+" / "+window+" / "+lang);
+                }
+            }
+
             foreach(var (flags,state) in new (uint,string)[]{(1,"connectedIdle"),(7,"conflict"),(9,"critical"),(0,"idle"),(2,"discharging"),(5,"charging")})
             {
                 reading.State=flags;
@@ -50,6 +76,7 @@ internal static class AuditUiTests
                 Check(((ToolTip)Field(battery,"tips")).GetToolTip(battery.Gauge).Contains(L.Get(lang,state)),"visible gauge help "+state+" / "+lang);
             }
         }
+        Check(L.Get(UiLanguage.English,"health")=="Capacity retention","health grade is explicitly capacity retention");
         Check(L.Get(UiLanguage.English,"full")=="Full-charge capacity","full-charge capacity label is precise");
         if(failures.Count>0)throw new Exception("UI audit regression ("+failures.Count+"): "+string.Join("; ",failures));
     }

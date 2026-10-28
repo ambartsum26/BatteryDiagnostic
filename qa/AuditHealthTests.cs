@@ -33,6 +33,8 @@ internal static class AuditHealthTests
             return disks.Single();
         }
 
+        var sectorConflict=DiskAssessmentEngine.Evaluate(new StorageDisk{MediaType="HDD",HealthCode="ProviderHealthy",AtaSectorWarning=true,RemainingLifePercent=95,Diagnostics=["ata-life:ConflictingSources"]});
+        Check(sectorConflict.StateKey=="sectorWarning"&&sectorConflict.Color==Theme.Warning&&sectorConflict.Remaining==null,"independent sector warning survives lifetime conflict");
         Case("Toolkit prediction", () =>
         {
             foreach (bool? previous in new bool?[] { null, false })

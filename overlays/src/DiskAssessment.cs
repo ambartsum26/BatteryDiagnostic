@@ -43,10 +43,10 @@ internal static class DiskAssessmentEngine
         // Windows health code yet. Do not let a Pre-fail threshold be downgraded.
         if(disk.AtaPrefailureThresholdExceeded==true)return new(remaining,grade,"smartLimit",Theme.Danger);
         if(disk.NvmeMediaErrors>0)return new(remaining,grade,"mediaErrors",Theme.Warning);
+        if(disk.AtaSectorWarning==true)return new(remaining,grade,"sectorWarning",Theme.Warning);
         if(invalidData)return new(null,DiskResourceGrade.Unknown,"dataInvalid",Theme.Muted);
         if(grade==DiskResourceGrade.Exhausted&&!nvme&&disk.AtaProfile!="None")return new(remaining,grade,"smartLimit",Theme.Danger);
         if(fault!=null)return new(remaining,grade,fault,Theme.Warning);
-        if(disk.AtaSectorWarning==true)return new(remaining,grade,"sectorWarning",Theme.Warning);
         if(disk.AtaThresholdAtLimit==true)return new(remaining,grade,"smartAtLimit",Theme.Warning);
         if(disk.NvmeAvailableSparePercent==disk.NvmeSpareThresholdPercent&&disk.NvmeSpareThresholdPercent is >0 and <100)return new(remaining,grade,"spareAtLimit",Theme.Warning);
         if(grade is DiskResourceGrade.Low or DiskResourceGrade.Exhausted)return new(remaining,grade,"resourceCaution",Theme.Warning);
