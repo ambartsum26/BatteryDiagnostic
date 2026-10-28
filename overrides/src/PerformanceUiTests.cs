@@ -95,7 +95,9 @@ internal static class PerformanceUiTests
             view.SetData(null,null,null,lang);
             Check(!view.HasLiveSample,"missing sample remains missing");
             Check(controls.All(c=>c.Text==PerfText.Get(lang,"unknown")&&!c.Enabled),"missing inventory localized without fictitious devices");
-            Check(cpuLink.Text==PerfText.Get(lang,"cpuActivate")&&cpuLink.AccessibleName==PerfText.Get(lang,"cpuActivate")&&!cpuLink.Visible,"CPU sensor link remains hidden while preserving localization/accessibility metadata");
+            Check(cpuLink.Text==PerfText.Get(lang,"cpuActivate")&&cpuLink.AccessibleName==PerfText.Get(lang,"cpuActivate")&&cpuLink.Visible,"CPU sensor activation is available when temperature is missing and remains localized");
+            view.SetData(inv,new PerformanceLive(DateTimeOffset.Now,25,3000,45,new(16UL<<30,8UL<<30,8UL<<30),[],[]),storage,lang);
+            Check(!cpuLink.Visible,"CPU activation link yields its place to a real temperature reading");
             Check(!diskLink.Visible,"drive access link is hidden when no provider reports access denial");
             view.SetData(inv,null,storage with {Diagnostics=["storage:AccessDenied"]},lang);
             Check(diskLink.Text==PerfText.Get(lang,"diskAccess")&&diskLink.AccessibleName==PerfText.Get(lang,"diskAccess"),"drive access link is localized and accessible");
