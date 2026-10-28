@@ -1,7 +1,7 @@
-name: DevicePulse 0.9.10 integrated PawnIO French
+name: DevicePulse final audit regression baseline
 on:
   push:
-    branches: [build/devicepulse-0.9.10-pawnio-fr]
+    branches: [build/devicepulse-0.9.11-final-audit]
   workflow_dispatch:
 permissions:
   contents: read
@@ -22,6 +22,18 @@ jobs:
           $p = Get-Content src/Program.cs -Raw
           $p = $p.Replace('            // Automatically activate', '            if(args.Contains("--upgrade-test")) { ApplicationConfiguration.Initialize();UpgradeTests.Run();return; }' + [Environment]::NewLine + '            if(args.Contains("--installer-self-test")) { ApplicationConfiguration.Initialize();InstallerTests.Run();return; }' + [Environment]::NewLine + '            // Automatically activate')
           Set-Content src/Program.cs $p
+      - name: Attach final audit tests and isolate hardware
+        shell: pwsh
+        run: |
+          Copy-Item qa/Audit*Tests.cs src/ -Force
+          Copy-Item qa/FinalAuditTests.cs src/ -Force
+          $p = Get-Content src/Program.cs -Raw
+          $p = $p.Replace('            // Automatically activate', '            if(args.Contains("--audit-self-test")) { ApplicationConfiguration.Initialize();FinalAuditTests.Run();return; }' + [Environment]::NewLine + '            // Automatically activate')
+          Set-Content src/Program.cs $p
+          $f = Get-Content src/MainForm.cs -Raw
+          $f = $f.Replace('if(!closing)await PawnIoInstaller.EnsureAvailable(this);','// QA only: installation disabled.')
+          $f = $f.Replace('if(!closing){pollTimer.Start();StartPerformance();await RefreshOnce();}','// QA only: physical sensor startup disabled.')
+          Set-Content src/MainForm.cs $f
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
@@ -43,129 +55,21 @@ jobs:
           dotnet publish src/BatteryDiagnostic.csproj -c Release -r win-x64 --self-contained true -o publish-win-x64 '-p:PublishSingleFile=true' '-p:IncludeNativeLibrariesForSelfExtract=true'
           if ($LASTEXITCODE -ne 0) { throw "Publish failed: $LASTEXITCODE" }
           if (!(Test-Path publish-win-x64/DevicePulse.exe)) { throw 'EXE missing' }
-      - name: Install verified optional libcdi SMART backend
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $url = 'https://github.com/a1ive/nwinfo/releases/download/v1.6.6/NWinfo.zip'
-          $expected = '52006A9280B53449375FD8D7211A2A8DEF7E287F93028BB469660CE877BD4A2E'
-          Invoke-WebRequest -Uri $url -OutFile nwinfo.zip -ErrorAction Stop
-          $actual = (Get-FileHash nwinfo.zip -Algorithm SHA256).Hash
-          if ($actual -ine $expected) { throw 'NWinfo.zip SHA256 verification failed' }
-          Expand-Archive nwinfo.zip -DestinationPath nwinfo-unpacked
-          $dlls = @(Get-ChildItem nwinfo-unpacked -Filter libcdi.dll -Recurse -File)
-          $x64 = @($dlls | Where-Object {
-            $fs = [IO.File]::OpenRead($_.FullName)
-            try {
-              $br = [IO.BinaryReader]::new($fs)
-              if ($br.ReadUInt16() -ne 0x5A4D) { return $false }
-              [void]$fs.Seek(0x3c, [IO.SeekOrigin]::Begin)
-              $offset = $br.ReadInt32()
-              if ($offset -lt 64 -or $offset -gt $fs.Length - 24) { return $false }
-              [void]$fs.Seek($offset, [IO.SeekOrigin]::Begin)
-              if ($br.ReadUInt32() -ne 0x4550) { return $false }
-              $br.ReadUInt16() -eq 0x8664
-            }
-            finally { $fs.Dispose() }
-          })
-          if ($x64.Count -ne 1) { throw "Expected one x64 libcdi.dll, got $($x64.Count)" }
-          Copy-Item $x64[0].FullName publish-win-x64/libcdi.dll
-          Copy-Item src/ThirdParty/libcdi/LICENSE.txt publish-win-x64/libcdi-LICENSE.txt
-          Remove-Item nwinfo.zip -Force
-          Remove-Item nwinfo-unpacked -Recurse -Force
-      - name: Run synthetic self-tests without hardware activation
+      - name: Prove current audit regressions
         shell: pwsh
         run: |
           $out = Join-Path $PWD 'publish-win-x64'
-          $exe = Join-Path $out 'DevicePulse.exe'
-          $p = Start-Process $exe -ArgumentList '--self-test' -WorkingDirectory $out -PassThru
-          if (!$p.WaitForExit(180000)) { $p.Kill(); throw 'Self-tests timed out' }
-          if (Test-Path "$out/error.txt") { Get-Content "$out/error.txt" }
-          if ($p.ExitCode -ne 0) { throw "Self-tests failed: $($p.ExitCode)" }
-          if (!(Test-Path "$out/self-test.txt")) { throw 'Test result missing' }
-          Get-Content "$out/self-test.txt"
-      - name: Test integrated installer without executing it
-        shell: pwsh
-        run: |
-          $out = Join-Path $PWD 'publish-win-x64'
-          $p = Start-Process (Join-Path $out 'DevicePulse.exe') -ArgumentList '--installer-self-test' -WorkingDirectory $out -PassThru
-          if (!$p.WaitForExit(120000)) { $p.Kill(); throw 'Installer tests timed out' }
-          if (Test-Path "$out/error.txt") { Get-Content "$out/error.txt" }
-          if ($p.ExitCode -ne 0) { throw 'Installer tests failed' }
-          Get-Content "$out/installer-tests.txt"
-      - uses: actions/upload-artifact@v4
-        with:
-          name: PawnIO-installation-francaise
-          path: publish-win-x64/pawnio-install-fr.png
-          if-no-files-found: error
-      - name: Test DDR and window behavior and render synthetic previews
-        shell: pwsh
-        run: |
-          $source = Get-Content src/MainForm.cs -Raw
-          try {
-            $qa = $source.Replace('if(!closing){pollTimer.Start();StartPerformance();await RefreshOnce();}', '// Synthetic UI QA: no timers, inventory, hardware probes or drivers.')
-            if ($qa -eq $source) { throw 'QA sensor isolation hook not found' }
-            Set-Content src/MainForm.cs $qa
-            dotnet publish src/BatteryDiagnostic.csproj -c Release -r win-x64 --self-contained true -o publish-win-x64 '-p:PublishSingleFile=true' '-p:IncludeNativeLibrariesForSelfExtract=true'
-            if ($LASTEXITCODE -ne 0) { throw 'UI QA publish failed' }
-            $out = Join-Path $PWD 'publish-win-x64'
-            $p = Start-Process (Join-Path $out 'DevicePulse.exe') -ArgumentList '--upgrade-test' -WorkingDirectory $out -PassThru
-            if (!$p.WaitForExit(180000)) { $p.Kill(); throw 'Upgrade tests timed out' }
-            if (Test-Path "$out/error.txt") { Get-Content "$out/error.txt" }
-            if ($p.ExitCode -ne 0) { throw 'Upgrade tests failed' }
-            Get-Content "$out/upgrade-tests.txt"
-          } finally {
-            Set-Content src/MainForm.cs $source
-          }
-      - uses: actions/upload-artifact@v4
-        with:
-          name: DevicePulse-0.9.10-UI-preview
-          path: publish-win-x64/ui-preview/
-          if-no-files-found: error
-      - name: Keep previews out of portable package
-        shell: pwsh
-        run: Remove-Item publish-win-x64/ui-preview -Recurse -Force
-      - name: Publish production EXE requiring administrator
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Stop'
-          [xml]$manifest = Get-Content src/app.manifest
-          $level = $manifest.SelectSingleNode("//*[local-name()='requestedExecutionLevel']")
-          if (!$level -or $level.level -ne 'asInvoker') { throw 'Unexpected original privilege level' }
-          $level.SetAttribute('level', 'requireAdministrator')
-          $manifest.Save((Join-Path $PWD 'src/app.manifest'))
-          dotnet publish src/BatteryDiagnostic.csproj -c Release -r win-x64 --self-contained true -o publish-win-x64 '-p:PublishSingleFile=true' '-p:IncludeNativeLibrariesForSelfExtract=true'
-          if ($LASTEXITCODE -ne 0) { throw "Admin publish failed: $LASTEXITCODE" }
-          $mt = Get-ChildItem 'C:/Program Files (x86)/Windows Kits/10/bin' -Filter mt.exe -Recurse -File | Where-Object { $_.FullName -match '\\x64\\mt.exe$' } | Sort-Object FullName -Descending | Select-Object -First 1
-          if (!$mt) { throw 'Windows manifest inspection tool missing' }
-          & $mt.FullName -nologo '-inputresource:publish-win-x64/DevicePulse.exe;#1' '-out:published.manifest'
-          if ($LASTEXITCODE -ne 0) { throw 'Cannot extract production manifest' }
-          [xml]$actual = Get-Content published.manifest
-          $actualLevel = $actual.SelectSingleNode("//*[local-name()='requestedExecutionLevel']")
-          if (!$actualLevel -or $actualLevel.level -ne 'requireAdministrator') { throw 'Production EXE is not requireAdministrator' }
-          Copy-Item published.manifest publish-win-x64/published.manifest
-          'PASS: requireAdministrator verified in compiled DevicePulse.exe. Production EXE not launched in CI; synthetic tests passed on the same source with asInvoker before republishing.' | Set-Content publish-win-x64/manifest-verification.txt
-      - name: Package complete build with French driver installation
-        shell: pwsh
-        run: |
-          Copy-Item src/ThirdPartyNotices.txt publish-win-x64/ThirdPartyNotices.txt
-          Copy-Item pawnio-verification.txt publish-win-x64/pawnio-verification.txt
-          @'
-          DevicePulse 0.9.10 — Windows x64. Extrayez le ZIP puis lancez DevicePulse.exe. Acceptez la demande administrateur de Windows. Si le pilote est absent et le processeur pris en charge, une fenêtre en français propose Installer ou Plus tard. Le programme officiel signé PawnIO 2.2.0 est intégré au fichier EXE; aucun téléchargement du pilote n’est nécessaire. Le pilote reste installé dans Windows. Un redémarrage peut être nécessaire. Les versions de pilote déjà présentes ne sont pas remplacées automatiquement.
-          '@ | Set-Content publish-win-x64/LIRE-MOI.txt
-          @'
-          Распакуйте ZIP и запустите DevicePulse.exe. Права администратора запрашиваются автоматически. Установщик PawnIO 2.2.0 встроен в EXE. Если драйвер отсутствует и CPU поддерживается, появится французское окно Installer / Plus tard. Установка только после подтверждения; драйвер остаётся в Windows. Иногда нужна перезагрузка. Существующий драйвер автоматически не заменяется.
-          '@ | Set-Content publish-win-x64/README-RU.txt
-          @'
-          Official unchanged PawnIO.Setup 2.2.0: https://github.com/namazso/PawnIO.Setup/releases/tag/2.2.0 . Embedded installer SHA256: 1F519A22E47187F70A1379A48CA604981C4FCF694F4E65B734AAA74A9FBA3032 . Authenticode verified in CI and rechecked at runtime before explicit user-approved installation.
-          '@ | Set-Content publish-win-x64/PawnIO-NOTICE.txt
-          @'
-          DevicePulse 0.9.10 win-x64. Runtime included. Full synthetic tests passed in non-elevated QA builds; final requireAdministrator manifest verified. Official installer integrity/signature and French consent UI verified. Driver installation and physical hardware were NOT tested in CI.
-          '@ | Set-Content publish-win-x64/BUILD-INFO.txt
-          Get-ChildItem publish-win-x64 -File | Where-Object Name -ne SHA256SUMS.txt | ForEach-Object { $h = Get-FileHash $_.FullName -Algorithm SHA256; "$($h.Hash)  $($_.Name)" } | Set-Content publish-win-x64/SHA256SUMS.txt
+          $p = Start-Process (Join-Path $out 'DevicePulse.exe') -ArgumentList '--audit-self-test' -WorkingDirectory $out -PassThru
+          if (!$p.WaitForExit(120000)) { $p.Kill(); throw 'Audit baseline timed out' }
+          Get-Content "$out/audit-regressions.txt"
+          if ($p.ExitCode -eq 0) { throw 'Expected known audit regressions were not detected' }
+          $errors = Get-Content "$out/error.txt" -Raw
+          Write-Host $errors
+          if ($errors -notmatch 'FINAL AUDIT REGRESSION') { throw 'Baseline failed outside the audit assertions' }
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: DevicePulse-0.9.10-Windows-x64-Admin-PawnIO-FR
-          path: publish-win-x64/
-          if-no-files-found: error
+          name: Audit-RED-report
+          path: |
+            publish-win-x64/audit-regressions.txt
+            publish-win-x64/error.txt
