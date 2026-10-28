@@ -1,4 +1,14 @@
-# BatteryDiagnostic 0.8.0
+# DevicePulse — stable build reference
+
+## Latest owner-designated stable binary: **DevicePulse 0.9.13 Admin**
+
+Windows x64 portable executable; the embedded application manifest requests **administrator privileges** at startup (`requireAdministrator`). Full reference details and exact SHA-256 verification: [DevicePulse 0.9.13 Admin](releases/v0.9.13-admin/RELEASE.md).
+
+**Caution:** this repository's existing source and earlier GitHub releases are *not* matching 0.9.13 Admin source. The stable executable and the portable ZIP have not yet been uploaded as GitHub release assets. No report export is present in this stable version.
+
+---
+
+## BatteryDiagnostic 0.8.0 — historical repository base
 
 Portable Windows x64, .NET 10 bundled. Extract source.zip and apply overrides/src before building.
 

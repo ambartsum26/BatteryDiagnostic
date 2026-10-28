@@ -1,0 +1,3 @@
+# DevicePulse 0.9.13 Admin stable reference
+2a54bb9beecc0c024318c409cede7277c18c5e1fc465bf4b8461aa25162822ed *DevicePulse.exe
+34a8f4f8aea513db67419cd38a965fdd2a4332d7266ae235596b7201fe0eb78e *DevicePulse-0.9.13-PORTABLE-WIN64.zip
