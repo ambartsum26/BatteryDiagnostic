@@ -99,7 +99,7 @@ internal sealed class PerformanceDashboard : UserControl
         finally {updating=false;}
         modules.AccessibleName=T("module");gpus.AccessibleName=T("gpu");disks.AccessibleName=T("disk");volumes.AccessibleName=T("volume");
         cpuActivate.Text=T("cpuActivate");cpuActivate.AccessibleName=T("cpuActivate");
-        cpuActivate.Visible=false;
+        cpuActivate.Visible=FreshLive?.CpuTemperatureC is null;
         diskAccess.Text=T("diskAccess");diskAccess.AccessibleName=T("diskAccess");
         smartDetails.Text=T("smartDetails");smartDetails.AccessibleName=T("smartDetails");smartDetails.Visible=SelectedDisk!=null;
         diskAccess.Visible=!PerformanceCpuTemperature.IsAdministrator&&(drives?.Diagnostics.Concat(drives.Disks.SelectMany(d=>d.Diagnostics)).Any(d=>d.Contains("AccessDenied",StringComparison.Ordinal))??false);
