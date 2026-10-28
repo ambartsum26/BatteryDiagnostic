@@ -3,7 +3,7 @@ namespace BatteryDiagnostic;
 
 internal sealed partial class MainForm : Form
 {
-    internal const string Version="0.9.9";
+    internal const string Version="0.9.10";
     readonly IContainer components=new Container();
     readonly IBatterySource source;
     readonly SessionMonitor monitor=new();
@@ -83,6 +83,7 @@ internal sealed partial class MainForm : Form
         MinimumSize=new Size(Math.Min(MinimumSize.Width,area.Width-16),Math.Min(MinimumSize.Height,area.Height-16));
         Size=new Size(Math.Min(Width,area.Width-16),Math.Min(Height,area.Height-16));
         Location=new Point(area.Left+(area.Width-Width)/2,area.Top+(area.Height-Height)/2);
+        if(!closing)await PawnIoInstaller.EnsureAvailable(this);
         if(!closing){pollTimer.Start();StartPerformance();await RefreshOnce();}
     }
     internal void SelectLanguage(UiLanguage value)
