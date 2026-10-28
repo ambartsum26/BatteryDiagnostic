@@ -1,0 +1,51 @@
+name: Publish tested DevicePulse portable download
+on:
+  push:
+    branches: [codex/devicepulse-storage-fix]
+    paths: [.github/workflows/devicepulse-download.yml]
+  workflow_dispatch:
+permissions:
+  actions: read
+  contents: write
+jobs:
+  publish-tested-package:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - name: Verify the tested artifact revision
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $revision = gh api "repos/$env:GITHUB_REPOSITORY/actions/artifacts/12808518412" --jq '.workflow_run.head_sha'
+          if ($LASTEXITCODE -ne 0 -or $revision.Trim() -ne 'fef13683de7ceaf1be15397b1b635113a5af32d6') { throw 'Unexpected artifact revision' }
+      - name: Download the already tested Windows build
+        uses: actions/download-artifact@v4
+        with:
+          name: DevicePulse-0.9.7-storagefix1-win-x64
+          path: package
+          run-id: 40672759747
+          github-token: ${{ github.token }}
+      - name: Package and publish a stable prerelease download
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if (!(Test-Path 'package/DevicePulse.exe')) { throw 'DevicePulse.exe missing' }
+          $archive = 'DevicePulse-0.9.7-storagefix1-win-x64.zip'
+          Compress-Archive -Path 'package/*' -DestinationPath $archive -CompressionLevel Optimal
+          $hash = (Get-FileHash $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+          [IO.File]::WriteAllText((Join-Path $PWD 'SHA256SUMS.txt'), "$hash  $archive" + [Environment]::NewLine)
+          $notes = @'
+          Portable Windows 10/11 x64 test build based on the supplied DevicePulse 0.9.7 sources.
+          Fixes read-only CSMI SMART collection and improves WMI authentication and diagnostics.
+          Windows build, decoder regression tests and FR/EN/RU UI fixtures passed.
+          Real SMART acquisition through the user's Intel RST controller is not yet verified.
+          No installation required. Extract the complete ZIP before starting DevicePulse.exe.
+          Tested source revision: fef13683de7ceaf1be15397b1b635113a5af32d6.
+          '@
+          [IO.File]::WriteAllText((Join-Path $PWD 'release-notes.md'), $notes)
+          gh release create 'v0.9.7-storagefix1' $archive 'SHA256SUMS.txt' --repo $env:GITHUB_REPOSITORY --target 'fef13683de7ceaf1be15397b1b635113a5af32d6' --prerelease --title 'DevicePulse 0.9.7 storage fix 1 - portable test build' --notes-file 'release-notes.md'
+          if ($LASTEXITCODE -ne 0) { throw 'Release publication failed' }
