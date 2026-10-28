@@ -87,12 +87,22 @@ jobs:
       - name: Test DDR and window behavior and render synthetic previews
         shell: pwsh
         run: |
-          $out = Join-Path $PWD 'publish-win-x64'
-          $p = Start-Process (Join-Path $out 'DevicePulse.exe') -ArgumentList '--upgrade-test' -WorkingDirectory $out -PassThru
-          if (!$p.WaitForExit(180000)) { $p.Kill(); throw 'Upgrade tests timed out' }
-          if (Test-Path "$out/error.txt") { Get-Content "$out/error.txt" }
-          if ($p.ExitCode -ne 0) { throw 'Upgrade tests failed' }
-          Get-Content "$out/upgrade-tests.txt"
+          $source = Get-Content src/MainForm.cs -Raw
+          try {
+            $qa = $source.Replace('if(!closing){pollTimer.Start();StartPerformance();await RefreshOnce();}', '// Synthetic UI QA: no timers, inventory, hardware probes or drivers.')
+            if ($qa -eq $source) { throw 'QA sensor isolation hook not found' }
+            Set-Content src/MainForm.cs $qa
+            dotnet publish src/BatteryDiagnostic.csproj -c Release -r win-x64 --self-contained true -o publish-win-x64 '-p:PublishSingleFile=true' '-p:IncludeNativeLibrariesForSelfExtract=true'
+            if ($LASTEXITCODE -ne 0) { throw 'UI QA publish failed' }
+            $out = Join-Path $PWD 'publish-win-x64'
+            $p = Start-Process (Join-Path $out 'DevicePulse.exe') -ArgumentList '--upgrade-test' -WorkingDirectory $out -PassThru
+            if (!$p.WaitForExit(180000)) { $p.Kill(); throw 'Upgrade tests timed out' }
+            if (Test-Path "$out/error.txt") { Get-Content "$out/error.txt" }
+            if ($p.ExitCode -ne 0) { throw 'Upgrade tests failed' }
+            Get-Content "$out/upgrade-tests.txt"
+          } finally {
+            Set-Content src/MainForm.cs $source
+          }
       - uses: actions/upload-artifact@v4
         with:
           name: DevicePulse-0.9.9-UI-preview

@@ -47,6 +47,8 @@ internal static class UpgradeTests
         }
         if(failures.Count>0)throw new Exception("Upgrade regression: "+string.Join("; ",failures));
 
+        // CI renders a QA-only form whose OnShown sensor startup is removed.
+        form.Show();Application.DoEvents();
         var ram3=Module(0x18);var ram4=Module(0x1a);var ram5=Module(0x22);
         var inv=new PerformanceInventory(new("Intel Core i7 — demonstration fixture",8,16,4800),new([ram3,ram4,ram5],4),
             [new("gpu-a","NVIDIA GeForce RTX — demonstration fixture",GpuKind.Dedicated,8UL<<30,8UL<<30,null)],[]);
@@ -68,6 +70,9 @@ internal static class UpgradeTests
                 Check(selector.Left>=0&&selector.Top>=0&&selector.Right<=form.PerformanceView.Width&&selector.Bottom<=form.PerformanceView.Height,"selector bounds "+lang+" / "+size);
             using var image=new Bitmap(form.Width,form.Height);
             form.DrawToBitmap(image,new Rectangle(Point.Empty,form.Size));
+            var colors=new HashSet<int>();
+            for(int y=0;y<image.Height;y+=16)for(int x=0;x<image.Width;x+=16)colors.Add(image.GetPixel(x,y).ToArgb());
+            Check(colors.Count>10,"rendered window contains real controls, not a hidden-form background");
             image.Save(Path.Combine(AppContext.BaseDirectory,"ui-preview",L.Code(lang)+"-"+size.Width+".png"));
         }
         if(failures.Count>0)throw new Exception("Upgrade regression: "+string.Join("; ",failures));
