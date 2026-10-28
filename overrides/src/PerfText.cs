@@ -8,6 +8,9 @@ internal static class PerfText
         return language switch {UiLanguage.French=>v.Fr,UiLanguage.English=>v.En,_=>v.Ru};
     }
     internal static string F(UiLanguage language,string key,params object[] args)=>string.Format(L.Culture(language),Get(language,key),args);
+    // Benchmark collects milliseconds internally; display seconds with seven decimals.
+    internal static string BenchmarkSeconds(UiLanguage language,double milliseconds)
+        =>F(language,"benchmarkResult",(milliseconds/1000d).ToString("0.0000000",L.Culture(language)));
     internal static void SelfTest()
     {
         foreach(var pair in text)
@@ -15,6 +18,16 @@ internal static class PerfText
             if(new[]{pair.Value.Fr,pair.Value.En,pair.Value.Ru}.Any(string.IsNullOrWhiteSpace))throw new Exception("Missing performance translation: "+pair.Key);
             foreach(var lang in Enum.GetValues<UiLanguage>())_ = F(lang,pair.Key,1,2,3,4,5,6);
         }
+        if(BenchmarkSeconds(UiLanguage.French,253.6416)!="0,2536416 secondes"||
+           BenchmarkSeconds(UiLanguage.English,253.6416)!="0.2536416 seconds"||
+           BenchmarkSeconds(UiLanguage.Russian,253.6416)!="0,2536416 секунды"||
+           BenchmarkSeconds(UiLanguage.French,0)!="0,0000000 secondes")
+            throw new Exception("CPU benchmark seconds display self-test failed.");
+        if(Get(UiLanguage.French,"powerHours")!="Durée de fonctionnement" ||
+           Get(UiLanguage.English,"powerHours")!="Power-on hours" ||
+           Get(UiLanguage.Russian,"powerHours")!="Общее время работы" ||
+           Get(UiLanguage.Russian,"powerCycles")!="Число включений")
+            throw new Exception("Disk operating time localization self-test failed.");
     }
     static readonly Dictionary<string,(string Fr,string En,string Ru)> text=new()
     {
@@ -22,7 +35,7 @@ internal static class PerfText
         ["frequencyDriver"]=("Fréq. pilote","Driver clock","Частота драйвера"),
         ["configuredSpeed"]=("Débit configuré (firmware)","Configured rate (firmware)","Скорость по прошивке"),
         ["capacityDriver"]=("Capacité déclarée par le pilote","Capacity reported by driver","Объём по данным драйвера"),
-        ["powerHours"]=("Heures de fonctionnement","Power-on hours","Часы работы"),
+        ["powerHours"]=("Durée de fonctionnement","Power-on hours","Общее время работы"),
         ["limitedAssessment"]=("Absence d’alerte ≠ garantie de bon état","No warning ≠ guaranteed health","Нет предупреждений ≠ исправность"),
         ["liveUpdated"]=("Mesures : {0} · âge {1} s","Live: {0} · age {1} s","Измерения: {0} · возраст {1} с"),
         ["diskUpdated"]=("SMART : {0} · âge {1} s","SMART: {0} · age {1} s","SMART: {0} · возраст {1} с"),
@@ -32,9 +45,22 @@ internal static class PerfText
         ["diskNumber"]=("Disque physique {0}","Physical disk {0}","Физический диск {0}"),
         ["spareShort"]=("Réserve NVMe","NVMe spare","Резерв NVMe"),
         ["mediaErrorsShort"]=("Erreurs NVMe","NVMe media errors","Ошибки NVMe"),
+        ["benchmarkStart"]=("Test CPU","CPU test","Тест CPU"),
+        ["benchmarkStop"]=("Arrêter","Stop","Остановить"),
+        ["benchmarkRunning"]=("Test CPU en cours…","CPU test running…","Выполняется тест CPU…"),
+        ["benchmarkResult"]=("{0} secondes","{0} seconds","{0} секунды"),
+        ["benchmarkCancelled"]=("Test CPU arrêté","CPU test stopped","Тест CPU остановлен"),
+        ["benchmarkError"]=("Échec du test CPU","CPU test failed","Ошибка теста CPU"),
+        ["benchmarkTip"]=("Test de calcul sur un seul thread, à la demande. Un temps plus court signifie une exécution plus rapide. Ce test ne mesure pas la santé du processeur.","User-initiated single-thread calculation test. Lower times are faster. This is not a CPU health test.","Однопоточный тест вычислений по запросу. Чем меньше время, тем быстрее выполнение. Это не проверка здоровья процессора."),
         ["installedRam"]=("RAM installée","Installed RAM","Установлено RAM"),
+        ["healthPercent"]=("Santé (% de vie restante)","Health (% life remaining)","Здоровье (% остатка ресурса)"),
+        ["healthPercentShort"]=("Vie","Life","Ресурс"),
+        ["hddNoPercent"]=("Non calculable pour HDD","Not defined for HDD","Для HDD не определяется"),
+        ["hddPercentUnavailable"]=("Les HDD n'ont pas de pourcentage de santé SMART universel. L'état SMART est indiqué séparément.","HDD SMART does not define a universal health percentage. SMART condition is shown separately.","Для HDD нет универсального процента здоровья SMART. Состояние SMART показано отдельно."),
+        ["lifePercentNote"]=("Pour SSD/NVMe, le pourcentage indique la durée de vie restante d'après les données du disque. Il ne garantit pas l'absence de panne.","For SSD/NVMe, this percentage is the drive-reported remaining endurance. It does not guarantee that the drive will not fail.","Для SSD/NVMe процент показывает остаток ресурса по данным накопителя. Это не гарантия отсутствия неисправностей."),
         ["usableRam"]=("RAM utilisable par Windows","RAM usable by Windows","RAM доступно Windows"),
         ["cdiWaiting"]=("en attente","waiting","ожидание"),
+        ["cdiReadOnly"]=("désactivé : lecture seule non garantie","disabled: read-only operation not guaranteed","отключено: режим только чтения не гарантирован"),
         ["cdiMissing"]=("DLL absente","DLL missing","DLL отсутствует"),
         ["cdiRejected"]=("DLL non vérifiée, non chargée","unverified DLL, not loaded","DLL не прошла проверку"),
         ["cdiAdministrator"]=("droits administrateur requis","administrator required","нужны права администратора"),
@@ -92,8 +118,8 @@ internal static class PerfText
         ["detailsNote"]=("Les colonnes Actuel/Pire sont des valeurs normalisées, pas des pourcentages. Les données brutes dépendent du fabricant.","Current/Worst are normalized values, not percentages. Raw data depends on the manufacturer.","Текущее/Худшее — нормализованные значения, а не проценты. Значение исходных данных зависит от производителя."),
         ["spare"]=("Réserve disponible NVMe","NVMe available spare","Доступный резерв NVMe"),
         ["mediaErrors"]=("Erreurs d’intégrité NVMe","NVMe media/data errors","Ошибки носителя/данных NVMe"),
-        ["hours"]=("Heures de fonctionnement","Power-on hours","Часы работы"),
-        ["powerCycles"]=("Nombre d’allumages","Power-on count","Количество включений"),
+        ["hours"]=("Durée de fonctionnement","Power-on hours","Общее время работы"),
+        ["powerCycles"]=("Nombre d’allumages","Power-on count","Число включений"),
         ["hostReads"]=("Total lu (hôte)","Total host reads","Всего прочитано"),
         ["hostWrites"]=("Total écrit (hôte)","Total host writes","Всего записано"),
         ["resourceSource"]=("Source du pourcentage","Percentage source","Источник процента"),

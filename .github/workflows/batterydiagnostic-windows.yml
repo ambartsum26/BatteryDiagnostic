@@ -1,7 +1,7 @@
-name: Build BatteryDiagnostic Windows EXE
+name: Build DevicePulse storage fix Windows EXE
 on:
   push:
-    branches: [main]
+    branches: [codex/devicepulse-storage-fix]
   workflow_dispatch:
 
 permissions:
@@ -14,12 +14,12 @@ jobs:
     steps:
       - name: Check out source
         uses: actions/checkout@v4
-      - name: Extract supplied source
+      - name: Extract source and apply portable overlays
         shell: pwsh
         run: |
           Expand-Archive source.zip -DestinationPath source-unpacked
           Copy-Item source-unpacked/BatteryDiagnostic-0.7.8-ONE-CLICK/* . -Recurse -Force
-          Copy-Item overrides/src/* src/ -Force
+          Copy-Item overrides/src/* src/ -Recurse -Force
       - name: Install .NET 10 SDK
         uses: actions/setup-dotnet@v4
         with:
@@ -35,8 +35,8 @@ jobs:
         run: |
           dotnet publish src/BatteryDiagnostic.csproj -c Release -r win-x64 --self-contained true --no-restore -o publish-win-x64 '-p:PublishSingleFile=true' '-p:IncludeNativeLibrariesForSelfExtract=true'
           if ($LASTEXITCODE -ne 0) { throw "dotnet publish exited with $LASTEXITCODE" }
-          if (!(Test-Path 'publish-win-x64/BatteryDiagnostic.exe')) { throw 'BatteryDiagnostic.exe missing' }
-          Write-Host "Built EXE size:" (Get-Item 'publish-win-x64/BatteryDiagnostic.exe').Length
+          if (!(Test-Path 'publish-win-x64/DevicePulse.exe')) { throw 'DevicePulse.exe missing' }
+          Write-Host "Built EXE size:" (Get-Item 'publish-win-x64/DevicePulse.exe').Length
       - name: Install verified optional libcdi SMART backend
         shell: pwsh
         run: |
@@ -75,7 +75,7 @@ jobs:
           $group.OutputType = 'Exe'
           $group.ApplicationManifest = ''
           $group.PublishSingleFile = 'false'
-          $assembly = $qa.CreateElement('AssemblyName'); $assembly.InnerText = 'BatteryDiagnostic.Qa'; [void]$group.AppendChild($assembly)
+          $group.AssemblyName = 'BatteryDiagnostic.Qa'
           $entry = $qa.CreateElement('StartupObject'); $entry.InnerText = 'BatteryDiagnostic.QaEntry'; [void]$group.AppendChild($entry)
           $items = $qa.CreateElement('ItemGroup')
           $compile = $qa.CreateElement('Compile'); $compile.SetAttribute('Include', '../build-qa/QaEntry.cs'); [void]$items.AppendChild($compile)
@@ -89,13 +89,13 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: BatteryDiagnostic-0.8.0-QA
+          name: DevicePulse-0.9.7-storagefix1-QA
           path: qa-output/
           if-no-files-found: warn
       - name: Upload Windows build
         uses: actions/upload-artifact@v4
         with:
-          name: BatteryDiagnostic-0.8.0-win-x64
+          name: DevicePulse-0.9.7-storagefix1-win-x64
           path: publish-win-x64/
           if-no-files-found: error
           retention-days: 30

@@ -4,6 +4,14 @@ internal enum DiskResourceGrade { Unknown, Normal, Low, Exhausted }
 internal sealed record DiskAssessment(double? Remaining,DiskResourceGrade Resource,string StateKey,Color Color);
 internal static class DiskAssessmentEngine
 {
+    // A lifetime percentage is meaningful only when firmware or a supported
+    // SMART profile reports endurance. Conventional HDD SMART has no universal
+    // numeric "health" scale; do not turn a green status into 100%.
+    internal static double? HealthPercentage(StorageDisk? disk)
+    {
+        if(disk is null || disk.MediaType is "HDD" or "Rotating")return null;
+        return Evaluate(disk).Remaining;
+    }
     internal static DiskResourceGrade Classify(double? remaining)=>remaining switch
     {
         null=>DiskResourceGrade.Unknown,
@@ -51,6 +59,11 @@ internal static class DiskAssessmentEngine
         Check(Classify(100)==DiskResourceGrade.Normal&&Classify(11)==DiskResourceGrade.Normal,"normal remaining endurance");
         Check(Classify(10)==DiskResourceGrade.Low&&Classify(1)==DiskResourceGrade.Low,"ten percent caution");
         Check(Classify(0)==DiskResourceGrade.Exhausted&&Classify(-1)==DiskResourceGrade.Unknown,"zero versus invalid");
+        Check(HealthPercentage(new StorageDisk {MediaType="SSD",RemainingLifePercent=87,RemainingLifeSource="NvmeHealthLog:PercentageUsed"})==87,"SSD firmware-derived health is shown");
+        Check(HealthPercentage(new StorageDisk {MediaType="HDD",RemainingLifePercent=100,HealthCode="ProviderHealthy"}) is null,"HDD must never inherit an invented percentage");
+        Check(HealthPercentage(new StorageDisk {MediaType="SSD",HealthCode="ProviderHealthy"}) is null,"healthy status alone cannot imply 100 percent");
+        Check(HealthPercentage(new StorageDisk {MediaType="SSD",RemainingLifePercent=120}) is null,"invalid endurance cannot appear as a percentage");
+        Check(HealthPercentage(new StorageDisk {MediaType="SSD",RemainingLifePercent=99,Diagnostics=["ata-life:ConflictingSources"]}) is null,"conflicting SMART percentages are unavailable");
         var failed=Evaluate(new StorageDisk {RemainingLifePercent=90,HealthCode="FailurePredicted"});
         Check(failed.StateKey=="predicted"&&failed.Remaining==90&&failed.Color==Theme.Danger,"failure overrides apparently large resource");
         Check(Evaluate(new StorageDisk {HealthCode="NoFailurePredicted"}).StateKey=="insufficient","negative SMART prediction never invents a percentage");

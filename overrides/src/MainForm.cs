@@ -3,7 +3,7 @@ namespace BatteryDiagnostic;
 
 internal sealed partial class MainForm : Form
 {
-    internal const string Version="0.8.0";
+    internal const string Version="0.9.7-storagefix1";
     readonly IContainer components=new Container();
     readonly IBatterySource source;
     readonly SessionMonitor monitor=new();
@@ -32,7 +32,7 @@ internal sealed partial class MainForm : Form
     internal MainForm(IBatterySource? batterySource=null)
     {
         L.ApplyCulture(language); Icon=LoadAppIcon(); source=batterySource??new WindowsBatterySource();
-        Text="Battery Diagnostic Portable "+Version; BackColor=Theme.Background; Font=new Font("Segoe UI",10);
+        Text="DevicePulse "+Version; BackColor=Theme.Background; Font=new Font("Segoe UI",10);
         AutoScaleDimensions=new SizeF(96,96); AutoScaleMode=AutoScaleMode.Dpi; ClientSize=new Size(1120,860); MinimumSize=new Size(1000,740); FormBorderStyle=FormBorderStyle.None; MaximizeBox=false; StartPosition=FormStartPosition.CenterScreen;
         pollTimer=new System.Windows.Forms.Timer(components) { Interval=2000 };
         pollTimer.Tick+=async(_,_)=>

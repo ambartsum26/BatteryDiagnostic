@@ -1359,6 +1359,10 @@ internal static partial class PerformanceStorage
 
     // Native WMI COM interfaces avoid adding System.Management or starting
     // PowerShell. Semisynchronous enumerator Next has a real provider timeout.
+    internal const uint WmiAuthenticationLevel = 6; // RPC_C_AUTHN_LEVEL_PKT_PRIVACY
+    internal static string WmiFailure(string stage, Exception ex) =>
+        ErrorCode(ex) + ":stage=" + stage + ";hr=0x" + ex.HResult.ToString("X8", CultureInfo.InvariantCulture);
+
     sealed class DiskWmiSession : IDisposable
     {
         IWbemDiskServices? services;
@@ -1368,16 +1372,19 @@ internal static partial class PerformanceStorage
         {
             this.scope = scope; this.notes = notes;
             object? locatorObject = null;
+            string stage = "CreateLocator";
             try
             {
                 locatorObject = Activator.CreateInstance(Type.GetTypeFromCLSID(new Guid("4590F811-1D3A-11D0-891F-00AA004B2E24"), true)!);
                 var locator = (IWbemDiskLocator)locatorObject!;
+                stage = "ConnectServer";
                 int hr = locator.ConnectServer(scope, null, null, null, 0x80, null, IntPtr.Zero, out services);
                 Marshal.ThrowExceptionForHR(hr);
-                hr = CoSetProxyBlanket(services, 10, 0, IntPtr.Zero, 3, 3, IntPtr.Zero, 0);
+                stage = "ServicesProxySecurity";
+                hr = CoSetProxyBlanket(services, 10, 0, IntPtr.Zero, WmiAuthenticationLevel, 3, IntPtr.Zero, 0);
                 Marshal.ThrowExceptionForHR(hr);
             }
-            catch (Exception ex) { notes.Add(scope + ":" + ErrorCode(ex)); Release(services); services = null; }
+            catch (Exception ex) { notes.Add(scope + ":" + WmiFailure(stage, ex)); Release(services); services = null; }
             finally { Release(locatorObject); }
         }
         internal List<DiskWmiRow> Query(string query, params string[] fields)
@@ -1386,6 +1393,7 @@ internal static partial class PerformanceStorage
             if (services is null) return rows;
             IWbemDiskEnumerator? enumerator = null;
             string source = query.Contains(" FROM ", StringComparison.Ordinal) ? query.Split(" FROM ")[1].Split(' ')[0] : scope;
+            string stage = "ExecQuery";
             try
             {
                 Marshal.ThrowExceptionForHR(services.ExecQuery("WQL", query, 0x30, IntPtr.Zero, out enumerator));
@@ -1393,13 +1401,15 @@ internal static partial class PerformanceStorage
                 // ExecQuery returns a distinct COM proxy. The services proxy
                 // blanket does not propagate to IEnumWbemClassObject; without
                 // it, Next() may return WBEM_E_ACCESS_DENIED even for admins.
-                Marshal.ThrowExceptionForHR(CoSetProxyBlanket(enumerator, 10, 0, IntPtr.Zero, 3, 3, IntPtr.Zero, 0));
+                stage = "EnumeratorProxySecurity";
+                Marshal.ThrowExceptionForHR(CoSetProxyBlanket(enumerator, 10, 0, IntPtr.Zero, WmiAuthenticationLevel, 3, IntPtr.Zero, 0));
                 var watch = Stopwatch.StartNew();
                 while (watch.ElapsedMilliseconds < 1800)
                 {
                     IWbemDiskObject? item = null;
                     try
                     {
+                        stage = "EnumeratorNext";
                         int hr = enumerator.Next(600, 1, out item, out uint count);
                         if (hr < 0) Marshal.ThrowExceptionForHR(hr);
                         if (count == 0)
@@ -1419,7 +1429,7 @@ internal static partial class PerformanceStorage
                 }
                 if (watch.ElapsedMilliseconds >= 1800) notes.Add(source + ":Timeout");
             }
-            catch (Exception ex) { notes.Add(source + ":" + ErrorCode(ex)); }
+            catch (Exception ex) { notes.Add(source + ":" + WmiFailure(stage, ex)); }
             finally { Release(enumerator); }
             return rows;
         }
