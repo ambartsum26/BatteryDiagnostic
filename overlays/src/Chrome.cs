@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using System.ComponentModel;
 namespace BatteryDiagnostic;
 
 internal sealed partial class MainForm
@@ -85,7 +86,9 @@ internal sealed class CaptionButton : Button
 {
     readonly bool isClose;
     bool hover;
+    [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
     internal bool IsMaximize {get;init;}
+    [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
     internal bool IsRestored {get;set;}
     internal CaptionButton(bool close)
     {

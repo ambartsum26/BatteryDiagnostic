@@ -310,7 +310,7 @@ internal sealed class PerformanceDashboard : UserControl
     void PlaceSelectors()
     {
         if(modules==null||Width<=0||Height<=0)return;
-        viewScale=Math.Max(.1f,Math.Min(1.65f,Math.Min(Width/1000f,Height/710f)));viewX=(Width-1000*viewScale)/2;viewY=Math.Min(24*DeviceDpi/96f,Math.Max(0,(Height-710*viewScale)/2));
+        viewScale=Math.Max(.1f,Math.Min(1.65f*DeviceDpi/96f,Math.Min(Width/1000f,Height/710f)));viewX=(Width-1000*viewScale)/2;viewY=Math.Min(24*DeviceDpi/96f,Math.Max(0,(Height-710*viewScale)/2));
         Place(modules,520,210,446);Place(gpus,32,343,449);Place(disks,519,343,449);Place(volumes,519,551,449);
         float benchmarkFont=Math.Max(8,9f*viewScale*96/DeviceDpi);
         if(Math.Abs(benchmarkButton.Font.Size-benchmarkFont)>.1){var old=benchmarkButton.Font;benchmarkButton.Font=new Font("Segoe UI Semibold",benchmarkFont);old.Dispose();}
