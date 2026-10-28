@@ -57,13 +57,15 @@ internal static class AuditUiTests
                     Check(label.ClientSize.Height>=preferred.Height,"capacity text height "+name+" / "+window+" / "+lang);
                     Rectangle visible=label.ClientRectangle;
                     Control current=label;
+                    var chain=new List<string>{name+" bounds="+label.Bounds+" client="+label.ClientRectangle};
                     while(current.Parent is {} parent)
                     {
+                        chain.Add(parent.GetType().Name+" bounds="+parent.Bounds+" client="+parent.ClientRectangle);
                         visible.Offset(current.Left,current.Top);
                         visible=Rectangle.Intersect(visible,parent.ClientRectangle);
                         current=parent;
                     }
-                    Check(visible.Width>=label.ClientSize.Width&&visible.Height>=label.ClientSize.Height,"capacity ancestor clipping "+name+" / "+window+" / "+lang);
+                    Check(visible.Width>=label.ClientSize.Width&&visible.Height>=label.ClientSize.Height,"capacity ancestor clipping "+name+" / "+window+" / "+lang+" visible="+visible+"; "+string.Join(" -> ",chain));
                 }
             }
 

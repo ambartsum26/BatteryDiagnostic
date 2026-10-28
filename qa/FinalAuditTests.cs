@@ -11,7 +11,9 @@ internal static class FinalAuditTests
             catch(Exception ex){failures.Add(name+": "+ex);results.Add("FAIL: "+name+": "+ex.Message);}
         }
         File.WriteAllLines(Path.Combine(AppContext.BaseDirectory,"audit-regressions.txt"),results);
-        if(failures.Count==0)AuditVisualTests.Run();
+        try{AuditVisualTests.Run();}
+        catch(Exception ex){failures.Add("Visual fixtures: "+ex);results.Add("FAIL: visual fixtures: "+ex.Message);}
+        File.WriteAllLines(Path.Combine(AppContext.BaseDirectory,"audit-regressions.txt"),results);
         if(failures.Count>0)throw new Exception("FINAL AUDIT REGRESSION: "+string.Join(Environment.NewLine,failures));
     }
 }

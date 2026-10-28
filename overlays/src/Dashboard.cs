@@ -89,6 +89,9 @@ internal sealed class Dashboard : UserControl
         capacityLayout.RowStyles.Add(new RowStyle(SizeType.Absolute,36));capacityLayout.RowStyles.Add(new RowStyle(SizeType.Percent,100));
         var capacities=new TableLayoutPanel{Dock=DockStyle.Fill,ColumnCount=2,RowCount=1,Margin=Padding.Empty};
         capacities.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,50));capacities.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,50));
+        // An implicit AutoSize row expands to preferred content height and can
+        // extend below this fixed card; constrain the row to its viewport.
+        capacities.RowStyles.Add(new RowStyle(SizeType.Percent,100));
         var original=CapacityColumn(declaredCaption,declaredValue);
         var current=CapacityColumn(fullCaption,fullValue);
         capacities.Controls.Add(original,0,0);capacities.Controls.Add(current,1,0);
