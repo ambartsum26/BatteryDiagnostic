@@ -410,6 +410,8 @@ internal sealed class PerformanceDashboard : UserControl
     void Stat(Graphics g,string label,string value,float x,float y,float w=86,float valueSize=16,Color? valueColor=null)
     {
         DrawText(g,label,x,y,w,27,12,false,Theme.Muted);
+        bool missing=value==Unknown;
+        if(missing&&w<110)value="—";
         float fitted=valueSize;
         while(fitted>12)
         {
@@ -417,7 +419,7 @@ internal sealed class PerformanceDashboard : UserControl
             if(g.MeasureString(value,font).Width<=w-2)break;
             fitted=Math.Max(12,fitted-.5f);
         }
-        DrawText(g,value,x,y+26,w,29,fitted,true,value==Unknown?Theme.Muted:valueColor);
+        DrawText(g,value,x,y+26,w,29,fitted,true,missing?Theme.Muted:valueColor);
     }
     void DrawCpu(Graphics g)
     {
