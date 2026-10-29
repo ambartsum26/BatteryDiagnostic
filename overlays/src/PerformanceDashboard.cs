@@ -6,12 +6,12 @@ namespace BatteryDiagnostic;
 internal sealed class PerformanceDashboard : UserControl
 {
     readonly ComboBox modules=Selector(),gpus=Selector(),disks=Selector(),volumes=Selector();
-    readonly Button benchmarkButton=CreateBenchmarkButton();
+    readonly Button benchmarkButton=CreateActionButton("cpuBenchmark"),smartDetails=CreateActionButton("smartDetails");
     CancellationTokenSource? benchmarkCancellation;
     double? benchmarkMilliseconds;
     CpuBenchmarkState benchmarkState=CpuBenchmarkState.Idle;
     enum CpuBenchmarkState { Idle, Running, Complete, Cancelled, Failed }
-    readonly LinkLabel cpuActivate=AccessLink("cpu"),diskAccess=AccessLink("diskAccess"),smartDetails=AccessLink("smartDetails");
+    readonly LinkLabel cpuActivate=AccessLink("cpu"),diskAccess=AccessLink("diskAccess");
     readonly Queue<(DateTimeOffset Time,double? Usage)> history=[];
     readonly System.Windows.Forms.Timer freshnessTimer=new() {Interval=1000};
     PerformanceLive? FreshLive=>live!=null&&(DateTimeOffset.Now-live.Timestamp).TotalSeconds is >=0 and <=10?live:null;
@@ -75,11 +75,11 @@ internal sealed class PerformanceDashboard : UserControl
     internal event EventHandler? StorageDetailsRequested;
     internal string? SelectedDiskIdentity=>SelectedDisk?.DeviceId;
     static LinkLabel AccessLink(string tag)=>new() {Tag=tag,TextAlign=ContentAlignment.MiddleRight,LinkColor=Theme.Accent,ActiveLinkColor=Theme.Text,VisitedLinkColor=Theme.Accent,BackColor=Theme.Card,AutoSize=false,TabStop=true,Font=new Font("Segoe UI",8.5f)};
-    static Button CreateBenchmarkButton()
+    static Button CreateActionButton(string tag)
     {
         var button=new Button
         {
-            Tag="cpuBenchmark",FlatStyle=FlatStyle.Flat,UseVisualStyleBackColor=false,
+            Tag=tag,FlatStyle=FlatStyle.Flat,UseVisualStyleBackColor=false,
             BackColor=Theme.Header,ForeColor=Theme.Accent,Cursor=Cursors.Hand,
             TextAlign=ContentAlignment.MiddleCenter,TabStop=true,Font=new Font("Segoe UI Semibold",9f)
         };
@@ -171,7 +171,7 @@ internal sealed class PerformanceDashboard : UserControl
         UpdateBenchmarkButton();
         cpuActivate.LinkClicked+=(_,_)=>CpuActivationRequested?.Invoke(this,EventArgs.Empty);
         diskAccess.LinkClicked+=(_,_)=>StorageAccessRequested?.Invoke(this,EventArgs.Empty);
-        smartDetails.LinkClicked+=(_,_)=>StorageDetailsRequested?.Invoke(this,EventArgs.Empty);
+        smartDetails.Click+=(_,_)=>StorageDetailsRequested?.Invoke(this,EventArgs.Empty);
         foreach(var c in new[]{modules,gpus,disks,volumes})c.SelectedIndexChanged+=(_,_)=>
         {
             if(updating)return;
@@ -199,7 +199,7 @@ internal sealed class PerformanceDashboard : UserControl
         cpuActivate.Text=T("cpuActivate");cpuActivate.AccessibleName=T("cpuActivate");
         cpuActivate.Visible=false;
         diskAccess.Text=T("diskAccess");diskAccess.AccessibleName=T("diskAccess");
-        smartDetails.Text=T("smartDetails");smartDetails.AccessibleName=T("smartDetails");smartDetails.Visible=SelectedDisk!=null;
+        smartDetails.Text="SMART";smartDetails.AccessibleName=T("smartDetails");smartDetails.Visible=SelectedDisk!=null;
         UpdateBenchmarkButton();
         diskAccess.Visible=!PerformanceCpuTemperature.IsAdministrator&&(drives?.Diagnostics.Concat(drives.Disks.SelectMany(d=>d.Diagnostics)).Any(d=>d.Contains("AccessDenied",StringComparison.Ordinal))??false);
         AccessibleName=T("heading");
@@ -305,12 +305,12 @@ internal sealed class PerformanceDashboard : UserControl
         benchmarkButton.SetBounds((int)(viewX+349*viewScale),(int)(viewY+81*viewScale),
             Math.Max(50,(int)(130*viewScale)),Math.Max(20,(int)(27*viewScale)));
         cpuActivate.SetBounds((int)(viewX+335*viewScale),(int)(viewY+80*viewScale),(int)(146*viewScale),(int)(22*viewScale));
-        diskAccess.SetBounds((int)(viewX+815*viewScale),(int)(viewY+318*viewScale),(int)(152*viewScale),(int)(22*viewScale));
-        smartDetails.SetBounds((int)(viewX+714*viewScale),(int)(viewY+318*viewScale),(int)(90*viewScale),(int)(22*viewScale));
+        diskAccess.SetBounds((int)(viewX+690*viewScale),(int)(viewY+318*viewScale),(int)(152*viewScale),(int)(22*viewScale));
+        smartDetails.SetBounds((int)(viewX+858*viewScale),(int)(viewY+314*viewScale),(int)(110*viewScale),Math.Max(20,(int)(27*viewScale)));
         float size=Math.Max(7.5f,8.5f*viewScale*96/DeviceDpi);
         if(Math.Abs(cpuActivate.Font.Size-size)>.1){var old=cpuActivate.Font;cpuActivate.Font=new Font("Segoe UI",size);old.Dispose();}
         if(Math.Abs(diskAccess.Font.Size-size)>.1){var old=diskAccess.Font;diskAccess.Font=new Font("Segoe UI",size);old.Dispose();}
-        if(Math.Abs(smartDetails.Font.Size-size)>.1){var old=smartDetails.Font;smartDetails.Font=new Font("Segoe UI",size);old.Dispose();}
+        if(Math.Abs(smartDetails.Font.Size-benchmarkFont)>.1){var old=smartDetails.Font;smartDetails.Font=new Font("Segoe UI Semibold",benchmarkFont);old.Dispose();}
     }
     void Place(ComboBox combo,int x,int y,int width)
     {
@@ -335,8 +335,8 @@ internal sealed class PerformanceDashboard : UserControl
         using var path=Theme.Round(new RectangleF(x,y,w,h),9);
         using var bg=new SolidBrush(Theme.Card);using var border=new Pen(Theme.Border,1);
         g.FillPath(bg,path);g.DrawPath(border,path);
-        DevicePulseArt.Draw(g,art,new RectangleF(x+10,y+7,34,34));
-        DrawText(g,name,x+48,y+12,w-62,25,14,true);
+        DevicePulseArt.Draw(g,art,new RectangleF(x+12,y+10,30,30));
+        DrawText(g,name,x+52,y+12,w-66,25,14,true);
     }
     static void DrawText(Graphics g,string text,float x,float y,float w,float h,float size=12,bool bold=false,Color? color=null)
     {
@@ -356,11 +356,11 @@ internal sealed class PerformanceDashboard : UserControl
             if(g.MeasureString(value,font).Width<=w-2)break;
             fitted=Math.Max(12,fitted-.5f);
         }
-        DrawText(g,value,x,y+26,w,29,fitted,true,missing?Theme.Muted:valueColor);
+        DrawText(g,value,x,y+26,w,29,fitted,true,missing?Theme.Muted:valueColor??Theme.Accent);
     }
     void DrawCpu(Graphics g)
     {
-        DrawText(g,inventory?.Cpu.Model??Unknown,32,112,447,23,12,true);
+        DrawText(g,inventory?.Cpu.Model??Unknown,32,112,294,32,12,true);
         var rect=new RectangleF(33,151,249,72);
         using var pen=new Pen(Theme.Border);g.DrawRectangle(pen,rect);
         for(int row=1;row<4;row++)g.DrawLine(pen,rect.Left,rect.Top+row*rect.Height/4,rect.Right,rect.Top+row*rect.Height/4);
@@ -381,7 +381,7 @@ internal sealed class PerformanceDashboard : UserControl
         Stat(g,T("frequencyWindows"),FreshLive?.CpuFrequencyMHz is {} freq?N(freq/1000,"0.00")+" GHz":Unknown,295,222,90,16);
         Stat(g,T("cores"),Number(inventory?.Cpu.PhysicalCores)+" / "+Number(inventory?.Cpu.LogicalProcessors),390,222,90,17);
         string result=BenchmarkStatusText();
-        if(result.Length>0)DrawText(g,result,32,278,447,16,11,false,
+        if(result.Length>0)DrawText(g,result,349,113,130,30,12,false,
             benchmarkState==CpuBenchmarkState.Failed?Theme.Warning:Theme.Accent);
     }
     void DrawMemory(Graphics g)
@@ -393,10 +393,10 @@ internal sealed class PerformanceDashboard : UserControl
         if(FreshLive?.Memory.TotalBytes is >0&&FreshLive.Memory.UsedBytes.HasValue)
         {using var fill=new SolidBrush(Theme.Accent);g.FillRectangle(fill,520,166,(float)Math.Clamp(FreshLive.Memory.UsedBytes.Value/(double)FreshLive.Memory.TotalBytes.Value,0,1)*446,7);}
         DrawText(g,T("modules"),520,180,242,20,12,false,Theme.Muted);
-        DrawText(g,(inventory?.Memory.Modules.Count is >0?inventory.Memory.Modules.Count.ToString(L.Culture(language)):Unknown)+" / "+Number(inventory?.Memory.TotalSlots),770,180,196,20,12,true);
+        DrawText(g,(inventory?.Memory.Modules.Count is >0?inventory.Memory.Modules.Count.ToString(L.Culture(language)):Unknown)+" / "+Number(inventory?.Memory.TotalSlots),770,180,196,20,12,true,Theme.Accent);
         var m=SelectedModule;
         DrawText(g,T("memoryType")+": "+(m?.MemoryType??Unknown),520,244,184,22,12,true,Theme.Accent);
-        DrawText(g,T("configuredSpeed")+": "+(m?.ConfiguredSpeedMTs is {} speed?N(speed,"0")+" "+T("mt"):m?.ConfiguredClockMHz is {} clock?N(clock,"0")+" "+T("mhz"):Unknown),710,244,256,23,12,true);
+        DrawText(g,T("configuredSpeed")+": "+(m?.ConfiguredSpeedMTs is {} speed?N(speed,"0")+" "+T("mt"):m?.ConfiguredClockMHz is {} clock?N(clock,"0")+" "+T("mhz"):Unknown),710,244,256,23,12,true,m?.ConfiguredSpeedMTs!=null||m?.ConfiguredClockMHz!=null?Theme.Accent:Theme.Muted);
         DrawText(g,T("manufacturer")+": "+(MemoryManufacturer.Display(m?.Manufacturer)??Unknown),520,269,445,20,12,true);
     }
     void DrawGpu(Graphics g)
@@ -412,7 +412,7 @@ internal sealed class PerformanceDashboard : UserControl
         MemoryCell(g,T("used"),Memory(status?.DedicatedUsedBytes),182,512);
         MemoryCell(g,T("free"),Memory(free),332,512);
         DrawText(g,T("capacityDriver"),32,568,449,19,12,false,Theme.Muted);
-        DrawText(g,T("sharedMemory")+": "+Memory(status?.SharedUsedBytes),32,602,449,25,13);
+        DrawText(g,T("sharedMemory")+": "+Memory(status?.SharedUsedBytes),32,602,449,25,13,false,status?.SharedUsedBytes!=null?Theme.Accent:Theme.Muted);
     }
     static void DrawSeparator(Graphics g,float x,float y,float w)
     {using var pen=new Pen(Theme.Border);g.DrawLine(pen,x,y,x+w,y);}
@@ -437,16 +437,16 @@ internal sealed class PerformanceDashboard : UserControl
             color=life.Value<=10?Theme.Warning:Theme.Good;
         DrawDiskRing(g,524,406,104,life,color);
         using(var pctFont=new Font("Segoe UI",life.HasValue?24:12,FontStyle.Bold,GraphicsUnit.Pixel))
-        using(var pctBrush=new SolidBrush(color))
+        using(var pctBrush=new SolidBrush(life.HasValue?Theme.Accent:Theme.Muted))
         using(var pctAlignment=new StringFormat {Alignment=StringAlignment.Center,LineAlignment=StringAlignment.Center,Trimming=StringTrimming.EllipsisCharacter})
             g.DrawString(HealthPercentText(d),pctFont,pctBrush,new RectangleF(524,406,104,104),pctAlignment);
         DrawText(g,Health(d),654,400,310,20,12,true,assessment?.Color??Theme.Muted);
         DrawText(g,T("temperature"),654,426,310,20,12,false,Theme.Muted);
-        DrawText(g,freshDisk?.TemperatureC is {} temp?N(temp)+" °C":Unknown,654,447,310,26,18,true);
+        DrawText(g,freshDisk?.TemperatureC is {} temp?N(temp)+" °C":Unknown,654,447,310,26,18,true,freshDisk?.TemperatureC!=null?Theme.Accent:Theme.Muted);
         DrawText(g,T("powerCycles"),654,480,145,20,12,false,Theme.Muted);
-        DrawText(g,Number(freshDisk?.PowerOnCount),654,501,145,24,15,true);
+        DrawText(g,Number(freshDisk?.PowerOnCount),654,501,145,24,15,true,freshDisk?.PowerOnCount!=null?Theme.Accent:Theme.Muted);
         DrawText(g,T("powerHours"),814,480,150,20,12,false,Theme.Muted);
-        DrawText(g,Number(freshDisk?.PowerOnHours),814,501,150,24,15,true);
+        DrawText(g,Number(freshDisk?.PowerOnHours),814,501,150,24,15,true,freshDisk?.PowerOnHours!=null?Theme.Accent:Theme.Muted);
         DrawSeparator(g,520,533,447);
         MemoryCell(g,T("total"),DiskBytes(v?.TotalBytes),520,545);
         MemoryCell(g,T("usedSpace"),DiskBytes(v?.UsedBytes),669,545);
@@ -455,8 +455,8 @@ internal sealed class PerformanceDashboard : UserControl
         if(v?.TotalBytes is >0&&v.UsedBytes is {} used)
         {using var fill=new SolidBrush(Theme.Accent);g.FillRectangle(fill,520,612,(float)Math.Clamp(used/(double)v.TotalBytes.Value,0,1)*446,8);}
     }
-    static void MemoryCell(Graphics g,string caption,string value,float x,float y)
-    {DrawText(g,caption,x,y,145,18,12,false,Theme.Muted);DrawText(g,value,x,y+19,145,22,15,true);}
+    void MemoryCell(Graphics g,string caption,string value,float x,float y)
+    {DrawText(g,caption,x,y,145,18,12,false,Theme.Muted);DrawText(g,value,x,y+19,145,22,15,true,value==Unknown?Theme.Muted:Theme.Accent);}
     protected override void Dispose(bool disposing)
     {
         if(disposing)

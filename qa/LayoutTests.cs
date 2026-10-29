@@ -37,12 +37,13 @@ internal static class LayoutTests
             var reading=new Reading{Design=60000,Full=54000,Capacity=27000,State=1,BatteryModel=new string('W',85),Manufacturer=new string('M',80),Observation=new(12,40,[],12)};
             battery.SetData(new([reading],null,DateTimeOffset.Now,"Fixture"),reading,lang,"",true);
             host.Show();Application.DoEvents();battery.PerformLayout();
-            var details=(FlowLayoutPanel)Field(battery,"details")!;
+            var details=(TableLayoutPanel)Field(battery,"details")!;
             Check(!details.AutoScroll&&!details.VerticalScroll.Visible&&!details.HorizontalScroll.Visible,"Battery metadata has no scrollbars / "+lang);
             foreach(string name in new[]{"batteryModel","manufacturer","detailTime"})
             {
                 var label=(Label)Field(battery,name)!;
                 Check(label.Visible&&label.Top>=0&&label.Bottom<=details.ClientSize.Height&&label.Right<=details.ClientSize.Width,"Battery metadata fully visible: "+name+" / "+lang);
+                Check(label.GetPreferredSize(new Size(label.Width,0)).Height<=label.Height,"Battery metadata text fits: "+name+" / "+lang);
             }
             host.Close();
         }

@@ -54,7 +54,7 @@ internal sealed class BatteryGauge : Control
         using var font=new Font("Segoe UI",charge.Percent.HasValue?29:43,FontStyle.Bold,GraphicsUnit.Pixel);
         using var fmt=new StringFormat { Alignment=StringAlignment.Center, LineAlignment=StringAlignment.Center };
         using var halo=new SolidBrush(Color.FromArgb(220,Theme.Card)); using var badge=Theme.Round(new RectangleF(63,99,114,48),7); g.FillPath(halo,badge);
-        using var text=new SolidBrush(Theme.Text); g.DrawString(percentage,font,text,new RectangleF(56,99,128,48),fmt);
+        using var text=new SolidBrush(charge.Percent.HasValue?Theme.Accent:Theme.Muted); g.DrawString(percentage,font,text,new RectangleF(56,99,128,48),fmt);
         if(charge.Online==true)
         {
             using var plug=new Pen(Theme.Text,6) { StartCap=LineCap.Round,EndCap=LineCap.Round,LineJoin=LineJoin.Round };

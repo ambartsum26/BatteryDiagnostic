@@ -1,4 +1,4 @@
-DevicePulse 0.9.15 — Windows 10/11 x64
+DevicePulse 0.9.16 — Windows 10/11 x64
 
 FRANÇAIS
 Décompressez entièrement cette archive puis lancez DevicePulse.exe.
@@ -20,4 +20,4 @@ to install the official signed PawnIO 2.2.0 driver in French.
 
 Licenses and third-party notices: licenses/ and smartmontools/COPYING.txt.
 Corresponding smartmontools source: smartmontools/smartmontools-7.5-source.tar.gz.
-Source baseline: DevicePulse 0.9.11; this is the separate 0.9.15 build.
+Source baseline: DevicePulse 0.9.11; this is the separate 0.9.16 build.

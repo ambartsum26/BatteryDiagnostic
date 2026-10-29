@@ -11,11 +11,8 @@ internal sealed class Dashboard : UserControl
     readonly Label batteryModel=LabelFor(11,false,Theme.Muted),manufacturer=LabelFor(11,false,Theme.Muted);
     readonly Label detailTime=LabelFor(11,false,Theme.Muted),notice=LabelFor(10,false,Theme.Warning),scope=LabelFor(10,false,Theme.Muted);
     readonly Label capacityTitle=LabelFor(13,true),detailsTitle=LabelFor(13,true);
-    readonly FlowLayoutPanel details=new() {Dock=DockStyle.Fill,AutoSize=false,AutoScroll=true,FlowDirection=FlowDirection.TopDown,WrapContents=false,Padding=new Padding(0,5,0,0),Margin=Padding.Empty};
-    readonly LinkLabel informationLink=new(){Dock=DockStyle.Fill,TextAlign=ContentAlignment.MiddleRight,LinkColor=Theme.Accent,
-        ActiveLinkColor=Theme.Text,VisitedLinkColor=Theme.Accent,BackColor=Theme.Card,TabStop=true,Margin=Padding.Empty};
-    readonly Label informationDetails=LabelFor(10,false,Theme.Muted);
-    bool informationExpanded;
+    readonly TableLayoutPanel details=new() {Dock=DockStyle.Fill,AutoSize=false,AutoScroll=false,ColumnCount=2,RowCount=2,Padding=new Padding(0,5,0,0),Margin=Padding.Empty};
+    bool arrangingMetadata;
     readonly BatteryHealthRing healthRing=new() {Dock=DockStyle.Fill};
     internal readonly BatteryGauge Gauge=new() {Dock=DockStyle.Fill,Margin=Padding.Empty};
     internal readonly IndicatorWidget HealthIndicator=new(true), ChargeIndicator=new(false);
@@ -37,11 +34,11 @@ internal sealed class Dashboard : UserControl
         root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));
         root.RowStyles.Add(new RowStyle(SizeType.Absolute,42));
         root.RowStyles.Add(new RowStyle(SizeType.Absolute,29));
-        // Capacity captions and 19pt Wh values need a guaranteed readable
-        // region; metadata can scroll when the window is compact.
-        root.RowStyles.Add(new RowStyle(SizeType.Percent,65));
+        // Only the metadata card sizes to its text. Preserve the existing
+        // health, charge and capacity groups without introducing scrolling.
+        root.RowStyles.Add(new RowStyle(SizeType.Percent,100));
         root.RowStyles.Add(new RowStyle(SizeType.Absolute,164));
-        root.RowStyles.Add(new RowStyle(SizeType.Percent,35));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute,132));
         root.RowStyles.Add(new RowStyle(SizeType.Absolute,28));
         root.RowStyles.Add(new RowStyle(SizeType.Absolute,26));
         heading.TextAlign=ContentAlignment.MiddleLeft;
@@ -103,23 +100,12 @@ internal sealed class Dashboard : UserControl
         var metadataCard=Card(0,0);
         var metadataLayout=new TableLayoutPanel{Dock=DockStyle.Fill,ColumnCount=1,RowCount=2,Margin=Padding.Empty};
         metadataLayout.RowStyles.Add(new RowStyle(SizeType.Absolute,34));metadataLayout.RowStyles.Add(new RowStyle(SizeType.Percent,100));
-        foreach(var label in new[]{batteryModel,manufacturer,detailTime})
-        {
-            label.Dock=DockStyle.None;label.AutoSize=true;label.Margin=new Padding(0,0,0,9);details.Controls.Add(label);
-        }
+        details.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,50));details.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,50));
+        details.RowStyles.Add(new RowStyle(SizeType.Absolute,24));details.RowStyles.Add(new RowStyle(SizeType.Absolute,30));
+        batteryModel.Margin=new Padding(0,0,16,0);manufacturer.Margin=Padding.Empty;detailTime.Margin=new Padding(0,6,0,0);
+        details.Controls.Add(batteryModel,0,0);details.Controls.Add(manufacturer,1,0);details.Controls.Add(detailTime,0,1);details.SetColumnSpan(detailTime,2);
         details.SizeChanged+=(_,_)=>WrapMetadata();
-        var metadataHeader=new TableLayoutPanel{Dock=DockStyle.Fill,ColumnCount=2,RowCount=1,Margin=Padding.Empty};
-        metadataHeader.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));metadataHeader.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute,150));
-        metadataHeader.Controls.Add(detailsTitle,0,0);metadataHeader.Controls.Add(informationLink,1,0);
-        informationDetails.Dock=DockStyle.None;informationDetails.AutoSize=true;informationDetails.Margin=new Padding(0,4,0,9);informationDetails.Visible=false;
-        details.Controls.Add(informationDetails);
-        informationLink.LinkClicked+=(_,_)=>
-        {
-            informationExpanded=!informationExpanded;informationDetails.Visible=informationExpanded;
-            informationLink.Text=PerfText.Get(lang,informationExpanded?"detailsCollapse":"detailsExpand");
-            informationLink.AccessibleName=informationLink.Text;WrapMetadata();
-        };
-        metadataLayout.Controls.Add(metadataHeader,0,0);metadataLayout.Controls.Add(details,0,1);metadataCard.Controls.Add(metadataLayout);
+        metadataLayout.Controls.Add(detailsTitle,0,0);metadataLayout.Controls.Add(details,0,1);metadataCard.Controls.Add(metadataLayout);
         notice.TextAlign=ContentAlignment.MiddleLeft;scope.TextAlign=ContentAlignment.MiddleLeft;
         root.Controls.Add(heading,0,0);root.Controls.Add(model,0,1);root.Controls.Add(primary,0,2);
         root.Controls.Add(capacityCard,0,3);root.Controls.Add(metadataCard,0,4);root.Controls.Add(notice,0,5);root.Controls.Add(scope,0,6);
@@ -168,6 +154,7 @@ internal sealed class Dashboard : UserControl
         healthCaption.ForeColor=Theme.Text;
         healthValue.ForeColor=healthColor;
         declaredValue.Text=Capacity(reading?.Design); fullValue.Text=Capacity(reading?.Full);
+        declaredValue.ForeColor=reading?.Design!=null?Theme.Accent:Theme.Muted;fullValue.ForeColor=reading?.Full!=null?Theme.Accent:Theme.Muted;
         bottomState.Text=state==power?state:state+" · "+power;
         Gauge.UpdateCharge(charge,charge.Percent.HasValue?L.Percent(lang,charge.Percent.Value):"?",T("charge")+": "+percentage+"; "+state+"; "+power);
         string healthTip=assessment?.Retained is { } retainedForTip
@@ -181,7 +168,7 @@ internal sealed class Dashboard : UserControl
         var observation=reading?.Observation;
         detailTime.Text=observation!=null?L.F(lang,"observation",observation.Samples,observation.Seconds.ToString("0",L.Culture(lang))):T("observationUnknown");
                 int observationNotes=(observation?.Findings.Length??0)+(assessment?.Signals.Count??0)+(assessment?.Notes.Count??0);
-        if(observation!=null)detailTime.Text+=Environment.NewLine+(observationNotes>0?L.F(lang,"stabilityNotes",observationNotes):observation.ValidSamples<10||observation.Seconds<30?T("stabilityUnknown"):T("stabilityClear"));
+        if(observation!=null)detailTime.Text+=" · "+(observationNotes>0?L.F(lang,"stabilityNotes",observationNotes):observation.ValidSamples<10||observation.Seconds<30?T("stabilityUnknown"):T("stabilityClear"));
         var evidence=new List<string> {T("passive")};
         if(observation==null || observation.Seconds<30 || observation.ValidSamples<10)evidence.Add(T("shortObservation"));
         else if(observationNotes==0)evidence.Add(T("noObservedSignal"));
@@ -202,15 +189,12 @@ internal sealed class Dashboard : UserControl
         string allMessages=string.Join(Environment.NewLine,messages);
         notice.Text=messages.Count>0?messages[0]+(messages.Count>1?L.F(lang,"moreFindings",messages.Count-1):""):"";
         notice.Visible=messages.Count>0;notice.Cursor=Cursors.Default;
-        informationDetails.Text=string.Join(Environment.NewLine,new[]{healthTip,chargeTip,allMessages,string.Join(Environment.NewLine,evidence)}.Where(v=>!string.IsNullOrWhiteSpace(v)));
-        informationDetails.AccessibleDescription=informationDetails.Text;
-        informationLink.Text=PerfText.Get(lang,informationExpanded?"detailsCollapse":"detailsExpand");informationLink.AccessibleName=informationLink.Text;
-        informationDetails.Visible=informationExpanded;
         detailTime.AccessibleDescription=string.Join(Environment.NewLine,evidence);
         notice.AccessibleDescription=allMessages;
         notice.ForeColor=assessment?.Signals.Count>0?Theme.Danger:Theme.Warning;
         AccessibleName=T("information"); AccessibleDescription=healthCaption.Text+": "+healthValue.Text+"; "+bottomState.Text+"; "+declaredCaption.Text+": "+declaredValue.Text+"; "+fullCaption.Text+": "+fullValue.Text+"; "+notice.Text;
         healthRing.SetValue(assessment?.Retained,assessment?.Grade);
+        WrapMetadata();
     }
     protected override void OnSizeChanged(EventArgs e)
     {
@@ -222,10 +206,20 @@ internal sealed class Dashboard : UserControl
     }
     void WrapMetadata()
     {
-        if(details==null)return;
-        // Reserve scrollbar width before wrapping, so the first appearance of
-        // a vertical scrollbar cannot conceal the end of a metadata line.
-        int width=Math.Max(1,details.ClientSize.Width-details.Padding.Horizontal-SystemInformation.VerticalScrollBarWidth);
-        foreach(var label in new[]{batteryModel,manufacturer,detailTime,informationDetails})label.MaximumSize=new Size(width,0);
+        if(details==null||arrangingMetadata||details.ClientSize.Width<100)return;
+        arrangingMetadata=true;
+        try
+        {
+            int width=details.ClientSize.Width-details.Padding.Horizontal;
+            int modelWidth=Math.Max(1,width/2-batteryModel.Margin.Horizontal);
+            int makerWidth=Math.Max(1,width/2-manufacturer.Margin.Horizontal);
+            int first=Math.Max(batteryModel.GetPreferredSize(new Size(modelWidth,0)).Height,
+                manufacturer.GetPreferredSize(new Size(makerWidth,0)).Height);
+            int second=detailTime.GetPreferredSize(new Size(width,0)).Height+detailTime.Margin.Vertical;
+            details.RowStyles[0].Height=first;details.RowStyles[1].Height=second;
+            // Include the existing card's padding, margin and 34px heading.
+            root.RowStyles[4].Height=12+28+34+details.Padding.Vertical+first+second+2;
+        }
+        finally{arrangingMetadata=false;}
     }
 }

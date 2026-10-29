@@ -23,8 +23,8 @@ internal static class NavigationTests
             Check(NoTips(view),"No tooltip provider on performance readouts, lists or actions / "+lang);
             Check(view.AccessibleDescription?.Contains(disk.Model)==true,"Disk metadata retained for accessibility / "+lang);
             int detailsActions=0;view.StorageDetailsRequested+=(_,_)=>detailsActions++;
-            var smartLink=view.Controls.OfType<LinkLabel>().Single(c=>Equals(c.Tag,"smartDetails"));
-            typeof(LinkLabel).GetMethod("OnLinkClicked",BindingFlags.Instance|BindingFlags.NonPublic)!.Invoke(smartLink,[new LinkLabelLinkClickedEventArgs(new LinkLabel.Link())]);
+            var smartLink=view.Controls.OfType<Button>().Single(c=>Equals(c.Tag,"smartDetails"));
+            typeof(Button).GetMethod("OnClick",BindingFlags.Instance|BindingFlags.NonPublic)!.Invoke(smartLink,[EventArgs.Empty]);
             Check(detailsActions==1,"SMART remains an explicit action / "+lang);
             using var smart=new StorageDetailsForm(()=>snapshot,disk.DeviceId,lang);
             smart.Render();
@@ -35,17 +35,10 @@ internal static class NavigationTests
             var reading=new Reading{Design=60000,Full=54000,Capacity=27000,State=7,Observation=new(12,40,[],12)};
             battery.SetData(new([reading],null,DateTimeOffset.Now,"Synthetic"),reading,lang,"",true);
             Check(NoTips(battery),"No battery hover reports / "+lang);
-            var link=Field(battery,"informationLink") as LinkLabel;
-            var details=Field(battery,"informationDetails") as Label;
-            Check(link is {TabStop:true}&&details!=null,"Battery has inline details action / "+lang);
-            Check(details?.Visible==false,"Long battery details collapsed initially / "+lang);
-            if(link!=null)
-            {
-                typeof(LinkLabel).GetMethod("OnLinkClicked",BindingFlags.Instance|BindingFlags.NonPublic)!.Invoke(link,[new LinkLabelLinkClickedEventArgs(new LinkLabel.Link())]);
-                Check(details?.Visible==true&&details.Text.Length>0,"Battery detail expands inline / "+lang);
-                typeof(LinkLabel).GetMethod("OnLinkClicked",BindingFlags.Instance|BindingFlags.NonPublic)!.Invoke(link,[new LinkLabelLinkClickedEventArgs(new LinkLabel.Link())]);
-                Check(details?.Visible==false,"Battery detail collapses without a popup / "+lang);
-            }
+            Check(Field(battery,"details") is TableLayoutPanel{AutoScroll:false},"Battery metadata has no scrolling / "+lang);
+            Check(Field(battery,"batteryModel") is Label{Visible:true},"Battery model always visible / "+lang);
+            Check(Field(battery,"manufacturer") is Label{Visible:true},"Battery manufacturer always visible / "+lang);
+            Check(Field(battery,"detailTime") is Label{Visible:true},"Battery observation always visible / "+lang);
             Check(!(Field(battery,"notice") as Label)?.Text.Contains(lang switch{UiLanguage.Russian=>"наведите",UiLanguage.French=>"survoler",_=>"hover"})??true,"No obsolete hover instructions / "+lang);
             using var indicator=new IndicatorWidget(true);
             indicator.SetValue(80,"Fixture",new string('X',1000));
@@ -56,7 +49,7 @@ internal static class NavigationTests
             Check(!form.LanguageMenu.ShowItemToolTips,"No language-menu balloons / "+lang);
         }
         File.WriteAllText(Path.Combine(AppContext.BaseDirectory,"navigation-tests.txt"),failures.Count==0?
-            $"PASS {count} navigation checks: no tooltip providers, no SMART balloons, inline battery details, explicit SMART, FR/EN/RU.":
+            $"PASS {count} navigation checks: no tooltip providers, no SMART balloons, visible battery metadata, explicit SMART, FR/EN/RU.":
             $"FAIL {failures.Count}/{count}: "+string.Join("; ",failures));
         if(failures.Count>0)throw new Exception($"Navigation: {failures.Count}/{count}: "+string.Join("; ",failures));
     }
