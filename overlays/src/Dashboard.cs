@@ -37,7 +37,7 @@ internal sealed class Dashboard : UserControl
         // Only the metadata card sizes to its text. Preserve the existing
         // health, charge and capacity groups without introducing scrolling.
         root.RowStyles.Add(new RowStyle(SizeType.Percent,100));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute,140));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute,164));
         root.RowStyles.Add(new RowStyle(SizeType.Absolute,132));
         root.RowStyles.Add(new RowStyle(SizeType.Absolute,28));
         root.RowStyles.Add(new RowStyle(SizeType.Absolute,26));
@@ -50,8 +50,9 @@ internal sealed class Dashboard : UserControl
         primary.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,55));
         primary.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,45));
         var healthCard=Card(0,6);var chargeCard=Card(6,0);
+        healthCard.Padding=new Padding(20,12,20,12);chargeCard.Padding=new Padding(20,12,20,12);
         var healthLayout=new TableLayoutPanel{Dock=DockStyle.Fill,ColumnCount=1,RowCount=2,Margin=Padding.Empty};
-        healthLayout.RowStyles.Add(new RowStyle(SizeType.Absolute,43));healthLayout.RowStyles.Add(new RowStyle(SizeType.Percent,100));
+        healthLayout.RowStyles.Add(new RowStyle(SizeType.Absolute,34));healthLayout.RowStyles.Add(new RowStyle(SizeType.Percent,100));
         var healthHeader=new TableLayoutPanel{Dock=DockStyle.Fill,ColumnCount=2,RowCount=1,Margin=Padding.Empty};
         healthHeader.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));healthHeader.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute,109));
         // Hide the decorative mini indicator and preserve the primary health ring.
@@ -71,9 +72,9 @@ internal sealed class Dashboard : UserControl
         healthCard.Controls.Add(healthLayout);
 
         var chargeLayout=new TableLayoutPanel{Dock=DockStyle.Fill,ColumnCount=1,RowCount=3,Margin=Padding.Empty};
-        chargeLayout.RowStyles.Add(new RowStyle(SizeType.Absolute,43));
+        chargeLayout.RowStyles.Add(new RowStyle(SizeType.Absolute,34));
         chargeLayout.RowStyles.Add(new RowStyle(SizeType.Percent,100));
-        chargeLayout.RowStyles.Add(new RowStyle(SizeType.Absolute,35));
+        chargeLayout.RowStyles.Add(new RowStyle(SizeType.Absolute,30));
         var chargeHeader=new TableLayoutPanel{Dock=DockStyle.Fill,ColumnCount=2,RowCount=1,Margin=Padding.Empty};
         chargeHeader.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));chargeHeader.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute,109));
         // Hide the decorative mini indicator and preserve the live charge gauge.
@@ -117,7 +118,7 @@ internal sealed class Dashboard : UserControl
     static TableLayoutPanel CapacityColumn(Label caption,Label value)
     {
         var group=new TableLayoutPanel{Dock=DockStyle.Fill,ColumnCount=1,RowCount=2,Margin=Padding.Empty};
-        group.RowStyles.Add(new RowStyle(SizeType.Percent,42));group.RowStyles.Add(new RowStyle(SizeType.Percent,58));
+        group.RowStyles.Add(new RowStyle(SizeType.Absolute,34));group.RowStyles.Add(new RowStyle(SizeType.Absolute,48));
         caption.TextAlign=ContentAlignment.BottomLeft;value.TextAlign=ContentAlignment.TopLeft;
         group.Controls.Add(caption,0,0);group.Controls.Add(value,0,1);return group;
     }
@@ -224,6 +225,17 @@ internal sealed class Dashboard : UserControl
             root.RowStyles[4].Height=card.Margin.Vertical+card.Padding.Vertical+layout.RowStyles[0].Height
                 +details.Padding.Vertical+first+second+Math.Max(2,2*DeviceDpi/96f);
             root.RowStyles[5].Height=notice.Text.Length>0?Math.Max(28*DeviceDpi/96f,notice.GetPreferredSize(new Size(Math.Max(1,root.ClientSize.Width-root.Padding.Horizontal),0)).Height):0;
+            if(declaredCaption.Parent is TableLayoutPanel original&&fullCaption.Parent is TableLayoutPanel current
+                &&original.Width>100&&current.Width>100&&original.Parent?.Parent is TableLayoutPanel capacityLayout
+                &&capacityLayout.Parent is {} capacityCard)
+            {
+                int caption=Math.Max(declaredCaption.GetPreferredSize(new Size(declaredCaption.Width,0)).Height,
+                    fullCaption.GetPreferredSize(new Size(fullCaption.Width,0)).Height);
+                int value=Math.Max(declaredValue.GetPreferredSize(new Size(declaredValue.Width,0)).Height,
+                    fullValue.GetPreferredSize(new Size(fullValue.Width,0)).Height);
+                foreach(var column in new[]{original,current}){column.RowStyles[0].Height=caption;column.RowStyles[1].Height=value;}
+                root.RowStyles[3].Height=capacityCard.Margin.Vertical+capacityCard.Padding.Vertical+capacityLayout.RowStyles[0].Height+caption+value+2;
+            }
         }
         finally{arrangingMetadata=false;}
     }
