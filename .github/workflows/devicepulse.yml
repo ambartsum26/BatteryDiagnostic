@@ -1,7 +1,7 @@
-name: DevicePulse 0.9.15 integrated PawnIO French
+name: DevicePulse 0.9.16 integrated PawnIO French
 on:
   push:
-    branches: [codex/devicepulse-0.9.15-navigation]
+    branches: [codex/devicepulse-0.9.16-layout]
   workflow_dispatch:
 permissions:
   contents: read
@@ -30,6 +30,7 @@ jobs:
           Copy-Item qa/Audit*Tests.cs src/ -Force
           Copy-Item qa/FinalAuditTests.cs src/ -Force
           Copy-Item qa/NavigationTests.cs src/ -Force
+          Copy-Item qa/LayoutTests.cs src/ -Force
           $p = Get-Content src/Program.cs -Raw
           $p = $p.Replace('            // Automatically activate', '            if(args.Contains("--audit-self-test")) { ApplicationConfiguration.Initialize();FinalAuditTests.Run();return; }' + [Environment]::NewLine + '            // Automatically activate')
           Set-Content src/Program.cs $p
@@ -152,7 +153,7 @@ jobs:
           }
       - uses: actions/upload-artifact@v4
         with:
-          name: DevicePulse-0.9.15-UI-preview
+          name: DevicePulse-0.9.16-UI-preview
           path: publish-win-x64/ui-preview/
           if-no-files-found: error
       - name: Keep previews out of portable package
@@ -185,6 +186,7 @@ jobs:
             publish-win-x64/audit-regressions.txt
             publish-win-x64/audit-visual.txt
             publish-win-x64/navigation-tests.txt
+            publish-win-x64/layout-tests.txt
             publish-win-x64/error.txt
       - name: Keep audit images out of portable ZIP
         shell: pwsh
@@ -244,14 +246,14 @@ jobs:
             Copy-Item -LiteralPath $file.FullName -Destination $target
           }
           Copy-Item docs/SENSOR-COMPATIBILITY.md complete-source/README.md
-          Compress-Archive complete-source/* DevicePulse-0.9.15-complete-source.zip -CompressionLevel Optimal
+          Compress-Archive complete-source/* DevicePulse-0.9.16-complete-source.zip -CompressionLevel Optimal
       - uses: actions/upload-artifact@v4
         with:
-          name: DevicePulse-0.9.15-complete-source
-          path: DevicePulse-0.9.15-complete-source.zip
+          name: DevicePulse-0.9.16-complete-source
+          path: DevicePulse-0.9.16-complete-source.zip
           if-no-files-found: error
       - uses: actions/upload-artifact@v4
         with:
-          name: DevicePulse-0.9.15-Windows-x64-Admin-PawnIO-FR
+          name: DevicePulse-0.9.16-Windows-x64-Admin-PawnIO-FR
           path: portable-clean/
           if-no-files-found: error
