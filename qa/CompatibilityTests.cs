@@ -10,11 +10,15 @@ internal static class CompatibilityTests
         { count++;try {if(!check())failures.Add(name);}catch(Exception e){failures.Add(name+": "+e.Message);} }
         string Json(string fields,string model="Samsung SSD 870 EVO 1TB",string protocol="ATA",int index=0,int status=0)=>
             $$"""{"json_format_version":[1,0],"smartctl":{"exit_status":{{status}}},"device":{"name":"/dev/pd{{index}}","protocol":"{{protocol}}"},"model_name":"{{model}}",{{fields}}} """;
-        const string ssd="\"rotation_rate\":0,\"in_smartctl_database\":true,\"smart_status\":{\"passed\":true},\"temperature\":{\"current\":36},\"endurance_used\":{\"current_percent\":17},\"power_on_time\":{\"hours\":8123},\"power_cycle_count\":240";
+        const string stats="\"ata_device_statistics\":{\"pages\":[{\"number\":7,\"table\":[{\"offset\":8,\"value\":17,\"flags\":{\"valid\":true}}]}]}";
+        const string ssd="\"rotation_rate\":0,\"in_smartctl_database\":true,\"smart_status\":{\"passed\":true},\"temperature\":{\"current\":36},\"endurance_used\":{\"current_percent\":17},\"power_on_time\":{\"hours\":8123},\"power_cycle_count\":240,"+stats;
         var ata=SmartctlParser.Parse(Json(ssd),0,0);
         Test("ATA model-specific remaining life",()=>ata?.RemainingLifePercent==83);
         Test("ATA counters and temperature",()=>ata is {TemperatureC:36,PowerOnHours:8123,PowerOnCount:240,Passed:true});
-        Test("Unknown ATA profile cannot guess endurance",()=>SmartctlParser.Parse(Json(ssd.Replace("\"in_smartctl_database\":true","\"in_smartctl_database\":false")),0,0)?.RemainingLifePercent is null);
+        Test("Known ATA database does not validate generic endurance guess",()=>SmartctlParser.Parse(Json("\"rotation_rate\":0,\"in_smartctl_database\":true,\"endurance_used\":{\"current_percent\":0},\"ata_smart_attributes\":{\"table\":[{\"id\":177,\"value\":255,\"worst\":255,\"raw\":{\"value\":12}}]}"),0,0)?.RemainingLifePercent is null);
+        Test("Unknown ATA profile cannot guess endurance",()=>SmartctlParser.Parse(Json("\"rotation_rate\":0,\"in_smartctl_database\":false,\"endurance_used\":{\"current_percent\":17}"),0,0)?.RemainingLifePercent is null);
+        Test("Invalid Device Statistics entry cannot supply endurance",()=>SmartctlParser.Parse(Json(ssd.Replace("\"valid\":true","\"valid\":false")),0,0)?.RemainingLifePercent is null);
+        Test("Native Device Statistics does not require model database guess",()=>SmartctlParser.Parse(Json(ssd.Replace("\"in_smartctl_database\":true","\"in_smartctl_database\":false")),0,0)?.RemainingLifePercent==83);
         Test("HDD has no universal percentage",()=>SmartctlParser.Parse(Json(ssd.Replace("\"rotation_rate\":0","\"rotation_rate\":7200"),"WDC WD10EZEX"),0,0)?.RemainingLifePercent is null);
         Test("No SMART data means no invented percentage",()=>SmartctlParser.Parse(Json("\"rotation_rate\":0"),0,0)?.RemainingLifePercent is null);
         Test("Malformed JSON rejected",()=>SmartctlParser.Parse("{",0,0) is null);
@@ -60,6 +64,11 @@ internal static class CompatibilityTests
         Test("Firmware and WMI type conflict stays unknown",()=>MemoryCompatibility.Merge(new([m with{MemoryType="DDR3"}],2),[m with{MemoryType="DDR4"}]).Modules.Single().MemoryType is null);
         Test("Complete WMI fallback when firmware unavailable",()=>MemoryCompatibility.Merge(new([],null),[m with{MemoryType="DDR4"}]).Modules.Single().MemoryType=="DDR4");
         Test("Partial WMI capacity not used as complete fallback",()=>MemoryCompatibility.Merge(new([],null),[m,m with{Slot="DIMM_B1",CapacityBytes=null}]).Modules.Count==0);
+        Test("Known firmware slot count survives WMI fallback",()=>MemoryCompatibility.Merge(new([],4),[m]).TotalSlots==4);
+        Test("Inconsistent firmware slot count discarded",()=>MemoryCompatibility.Merge(new([],1),[m,m with{Slot="DIMM_B1"}]).TotalSlots is null);
+        var schedule=new StorageProbeSchedule();
+        var first=schedule.Order(6).Take(3).ToArray();foreach(int i in first)schedule.Attempted(i,6);
+        Test("Bounded SMART cycles reach all six disks",()=>first.SequenceEqual(new[]{0,1,2})&&schedule.Order(6).Take(3).SequenceEqual(new[]{3,4,5}));
         if(failures.Count>0)throw new Exception($"FAIL {failures.Count}/{count}: "+string.Join("; ",failures));
         Console.WriteLine($"PASS {count} compatibility fixtures: SMART/identity/counters, Intel/AMD eligibility, DDR3/4/5 and RAM binding. No hardware accessed.");
     }

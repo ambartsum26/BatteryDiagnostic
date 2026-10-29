@@ -10,6 +10,11 @@ internal static class SensorProviderTests
             "--drivedb="+Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,"smartmontools","drivedb.h")),"--","/dev/pd7"}),"fixed read-only argument list");
         bool invalid=false;try{SmartctlStorage.Arguments("x",-1);}catch(ArgumentOutOfRangeException){invalid=true;}
         Check(invalid,"unbounded or arbitrary device path forbidden");
+        Check(SmartctlStorage.Arguments("drivedb.h",7,true).Contains("--log=devstat,7"),"native ACS endurance page requested only for ATA transport");
+        var sc=new StorageDisk{Index=0,Model="SK hynix SC311 SATA 256GB",MediaType="SSD"};
+        var sata=new SmartctlSample{DriveIndex=0,Model=sc.Model,MediaType="SSD",Protocol="ATA",Attributes=[new(0xe9,2,1,null,99,false)]};
+        Check(SmartctlStorage.ResolveAtaEndurance(sc,sata).RemainingLifePercent==99,"SC311 validated E9 raw profile is preserved");
+        Check(SmartctlStorage.ResolveAtaEndurance(sc with{Model="Unknown SSD"},sata).RemainingLifePercent is null,"unknown ATA family never inherits generic endurance");
         Check(LibrarySensors.SelectCpuTemperature([(SensorType.Temperature,"Core #1",51),(SensorType.Temperature,"Core #2",62)])==62,"AMD K8 core naming");
         Check(LibrarySensors.SelectCpuTemperature([(SensorType.Temperature,"CPU (Tdie)",67)])==67,"AMD die naming");
         Check(LibrarySensors.SelectCpuTemperature([(SensorType.Temperature,"Core (Tctl)",95)]) is null,"no uncorrected control-temperature substitution");

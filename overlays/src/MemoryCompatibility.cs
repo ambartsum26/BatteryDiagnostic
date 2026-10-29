@@ -21,7 +21,7 @@ internal static class MemoryCompatibility
             // Only a complete Windows enumeration may replace missing firmware.
             if(windows.Count==0||windows.Any(m=>m.CapacityBytes is null or 0||Slot(m).Length==0)||
                 windows.Select(Slot).Distinct().Count()!=windows.Count)return firmware;
-            return new(windows.ToArray(),null); // Count of installed modules is not the number of slots.
+            return new(windows.ToArray(),firmware.TotalSlots>=windows.Count?firmware.TotalSlots:null);
         }
         return firmware with {Modules=firmware.Modules.Select(module=>
         {

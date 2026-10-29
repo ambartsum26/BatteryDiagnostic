@@ -28,16 +28,16 @@
 ### Task 1: Smartctl model-aware fallback
 
 Files: overlays/src/SmartctlParser.cs, overlays/src/SmartctlStorage.cs, overlays/src/PerformanceStorage.cs; qa/CompatibilityTests.cs.
-- [ ] Add fixture tests for ATA/NVMe/SCSI, unknown data, command error bits, conflict handling, identity, counter overflow, and read-only argument construction. Run RED.
-- [ ] Implement strict JSON parser and integrity-checked bounded child process; enrich only confirmed physical disk/model matches.
-- [ ] Run fixture tests GREEN and integrate into full Windows QA.
+- [x] Add fixture tests for ATA/NVMe/SCSI, unknown data, command error bits, conflict handling, identity, counter overflow, and read-only argument construction. Run RED.
+- [x] Implement strict JSON parser and integrity-checked bounded child process; enrich only confirmed physical disk/model matches.
+- [x] Run fixture tests GREEN and integrate into full Windows QA.
 
 ### Task 2: CPU eligibility and RAM fallback
 
 Files: overlays/src/CpuSensorSupport.cs, overlays/src/LibrarySensors.cs, overlays/src/CpuActivation.cs, overlays/src/PawnIoInstaller.cs, overlays/src/MemoryCompatibility.cs, overlays/src/PerformanceSensors.cs.
-- [ ] Add tests for Intel eligibility, supported AMD families, unsupported legacy AMD, DDR3/4/5 and LPDDR, unknown/contradictory generation and ambiguous memory module binding. Run RED.
-- [ ] Implement documented CPU eligibility and strict WMI memory fallback. Preserve direct Intel DTS validation.
-- [ ] Run tests GREEN.
+- [x] Add tests for Intel eligibility, supported AMD families, unsupported legacy AMD, DDR3/4/5 and LPDDR, unknown/contradictory generation and ambiguous memory module binding. Run RED.
+- [x] Implement documented CPU eligibility and strict WMI memory fallback. Preserve direct Intel DTS validation.
+- [x] Run tests GREEN.
 
 ### Task 3: Package, compile and verify
 

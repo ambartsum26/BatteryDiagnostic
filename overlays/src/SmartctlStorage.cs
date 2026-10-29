@@ -12,11 +12,14 @@ internal static class SmartctlStorage
     internal const string BinarySha256="B5DB94E5082C042BE44994B7A4FA8F7B5C8E713B2AB1C9A560D8F7A7995EA27D";
     internal const string DatabaseSha256="428F9D56357CD35056719E1EF3FE2EFF87B5AE7499E7797E0811C38B2DBB7079";
     static readonly Dictionary<string,long> RetryAfter=new(StringComparer.Ordinal);
-    internal static string[] Arguments(string database,int index)
+    static readonly StorageProbeSchedule Schedule=new();
+    internal static string[] Arguments(string database,int index,bool ataStats=false)
     {
         if(index is <0 or >4095)throw new ArgumentOutOfRangeException(nameof(index));
-        return ["--json=c","--info","--health","--attributes","--quietmode=noserial",
-            "--drivedb="+Path.GetFullPath(database),"--","/dev/pd"+index.ToString(CultureInfo.InvariantCulture)];
+        var args=new List<string>{"--json=c","--info","--health","--attributes","--quietmode=noserial"};
+        if(ataStats)args.Add("--log=devstat,7");
+        args.AddRange(["--drivedb="+Path.GetFullPath(database),"--","/dev/pd"+index.ToString(CultureInfo.InvariantCulture)]);
+        return args.ToArray();
     }
     static bool Verify(FileStream file,string expected)=>Convert.ToHexString(SHA256.HashData(file))==expected;
     internal static void Enrich(List<StorageDisk> disks,List<string> notes)
@@ -34,7 +37,7 @@ internal static class SmartctlStorage
             if(!Verify(binary,BinarySha256)||!Verify(data,DatabaseSha256)){notes.Add("smartctl:HashMismatch");return;}
             notes.Add("smartctl:Version=7.5;drivedb=764fcfb2472920fcaeb62950e60cb8bf3f983065");
             var watch=Stopwatch.StartNew();int matched=0;
-            for(int i=0;i<disks.Count;i++)
+            foreach(int i in Schedule.Order(disks.Count))
             {
                 var disk=disks[i];
                 if(disk.Index is not int index||index is <0 or >4095||string.IsNullOrWhiteSpace(disk.Model))continue;
@@ -44,9 +47,10 @@ internal static class SmartctlStorage
                 string key=index+":"+disk.Model;
                 if(RetryAfter.TryGetValue(key,out long retry)&&Environment.TickCount64<retry)continue;
                 if(watch.ElapsedMilliseconds>=5500){notes.Add("smartctl:CycleBudgetReached");break;}
-                var sample=Probe(executable,database,index,out string diagnostic);
+                Schedule.Attempted(i,disks.Count);
+                var sample=Probe(executable,database,index,disk.BusType is "ATA" or "SATA",out string diagnostic);
                 if(sample!=null&&SmartctlParser.IdentityMatches(sample,index,disk.Model))
-                {disks[i]=SmartctlMerge.Apply(disk,sample);matched++;RetryAfter.Remove(key);}
+                {disks[i]=SmartctlMerge.Apply(disk,ResolveAtaEndurance(disk,sample));matched++;RetryAfter.Remove(key);}
                 else
                 {
                     RetryAfter[key]=Environment.TickCount64+60000;
@@ -57,13 +61,25 @@ internal static class SmartctlStorage
         }
         catch(Exception e) when(e is not OutOfMemoryException){notes.Add("smartctl:"+e.GetType().Name);}
     }
-    static SmartctlSample? Probe(string executable,string database,int index,out string diagnostic)
+    internal static SmartctlSample ResolveAtaEndurance(StorageDisk disk,SmartctlSample sample)
+    {
+        if(sample.Protocol!="ATA")return sample;
+        var attributes=sample.Attributes.Select(a=>new StorageSmartAttribute(a.Id,a.Current,a.Worst,a.Threshold,a.Raw,a.Prefailure)).ToArray();
+        var decoded=PerformanceStorage.LibCdiDecodedSensors(disk.Model,disk.MediaType,attributes);
+        bool conflict=decoded.LifeConflict||decoded.LifeInvalid||(decoded.RemainingLifePercent.HasValue&&sample.RemainingLifePercent.HasValue&&
+            Math.Abs(decoded.RemainingLifePercent.Value-sample.RemainingLifePercent.Value)>1);
+        var life=conflict?null:sample.RemainingLifePercent??decoded.RemainingLifePercent;
+        return sample with{RemainingLifePercent=life,WearPercent=life.HasValue?100-(int)life.Value:null,
+            ModelFamily=decoded.Profile!="None"?decoded.Profile:sample.ModelFamily,
+            Diagnostics=conflict?sample.Diagnostics.Append("ata-life:ConflictingSmartctlProfile").ToArray():sample.Diagnostics};
+    }
+    static SmartctlSample? Probe(string executable,string database,int index,bool ataStats,out string diagnostic)
     {
         diagnostic="NoMatchingData";
         using var process=new Process{StartInfo=new(executable){UseShellExecute=false,CreateNoWindow=true,
             WorkingDirectory=Path.GetDirectoryName(executable)!,RedirectStandardOutput=true,RedirectStandardError=true,
             StandardOutputEncoding=Encoding.UTF8,StandardErrorEncoding=Encoding.UTF8}};
-        foreach(string arg in Arguments(database,index))process.StartInfo.ArgumentList.Add(arg);
+        foreach(string arg in Arguments(database,index,ataStats))process.StartInfo.ArgumentList.Add(arg);
         using var deadline=new CancellationTokenSource(2500);
         try
         {

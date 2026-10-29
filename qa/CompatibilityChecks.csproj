@@ -4,6 +4,7 @@
     <Compile Include="CompatibilityEntry.cs" /><Compile Include="CompatibilityTests.cs" />
     <Compile Include="../overlays/src/SmartctlParser.cs" />
     <Compile Include="../overlays/src/StorageModels.cs" /><Compile Include="../overlays/src/SmartctlMerge.cs" />
+    <Compile Include="../overlays/src/StorageProbeSchedule.cs" />
     <Compile Include="../overlays/src/MemoryCompatibility.cs" />
     <Compile Include="../overlays/src/CpuSensorSupport.cs" />
   </ItemGroup>

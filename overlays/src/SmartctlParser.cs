@@ -52,14 +52,17 @@ internal static class SmartctlParser
             string media=nvme||rotation==0?"SSD":rotation>0?"HDD":"Unknown";
             var notes=new List<string>();
             var log=Get(root,"nvme_smart_health_information_log");
-            ulong? used=UInt(Get(Get(root,"endurance_used"),"current_percent"));
+            // ATA endurance_used may be a guess from an attribute name and can
+            // clamp an invalid normalized 255 to zero used. A database match
+            // does not validate it. Only native ACS device statistics qualify.
+            ulong? used=protocol=="ATA"?AtaEndurance(root):UInt(Get(Get(root,"endurance_used"),"current_percent"));
             ulong? nvmeUsed=UInt(Get(log,"percentage_used"));
             bool invalidLife=used>255||nvmeUsed>255;
             bool conflict=nvme&&used.HasValue&&nvmeUsed.HasValue&&used!=nvmeUsed;
             if(invalidLife)notes.Add("ata-life:InvalidSmartctlEndurance");
             if(conflict)notes.Add("ata-life:ConflictingSmartctlValues");
             used=nvme?nvmeUsed??used:used;
-            bool decoded=nvme||protocol=="SCSI"||Bool(Get(root,"in_smartctl_database"))==true;
+            bool decoded=nvme||protocol=="SCSI"||used.HasValue;
             int? wear=!invalidLife&&!conflict&&media=="SSD"&&decoded&&used.HasValue?(int)used.Value:null;
             var attributes=new List<SmartctlAttribute>();var ids=new HashSet<byte>();
             var table=Get(Get(root,"ata_smart_attributes"),"table");
@@ -111,6 +114,22 @@ internal static class SmartctlParser
     static byte? Percent(JsonElement e)=>UInt(e) is {} n&&n<=100?(byte)n:null;
     static double? Number(JsonElement e)=>e.ValueKind==JsonValueKind.Number&&e.TryGetDouble(out var n)&&double.IsFinite(n)?n:null;
     static ulong? Bytes(ulong? units)=>units.HasValue&&units<=ulong.MaxValue/512000UL?units.Value*512000UL:null;
+    static ulong? AtaEndurance(JsonElement root)
+    {
+        var pages=Get(Get(root,"ata_device_statistics"),"pages");
+        if(pages.ValueKind!=JsonValueKind.Array||pages.GetArrayLength()>256)return null;
+        var matches=new List<ulong?>();
+        foreach(var page in pages.EnumerateArray())
+        {
+            if(UInt(Get(page,"number"))!=7)continue;
+            var table=Get(page,"table");
+            if(table.ValueKind!=JsonValueKind.Array||table.GetArrayLength()>64)continue;
+            foreach(var item in table.EnumerateArray())
+                if(UInt(Get(item,"offset"))==8&&Bool(Get(Get(item,"flags"),"valid"))==true)
+                    matches.Add(UInt(Get(item,"value")));
+        }
+        return matches.Count==1?matches[0]:null;
+    }
     static bool DeviceMatches(string name,int index)=>name.Equals("/dev/pd"+index.ToString(CultureInfo.InvariantCulture),StringComparison.OrdinalIgnoreCase)||
         name.Equals(@"\\.\PhysicalDrive"+index.ToString(CultureInfo.InvariantCulture),StringComparison.OrdinalIgnoreCase);
     internal static bool IdentityMatches(SmartctlSample sample,int index,string model)

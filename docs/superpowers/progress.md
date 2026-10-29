@@ -1,0 +1,9 @@
+# Sensor compatibility progress
+
+Base: 704ef16aa34995bb8608a1e10a2fe6ee7f79c4e9.
+Task 1: complete. Parser/merge fixtures RED: 24/49 then 4/56 failures; GREEN: 56/56. Existing storage logic verified byte-identical after moving record declarations and adding one SmartctlStorage.Enrich call.
+Task 2: complete. CPU eligibility and memory fallback fixtures GREEN in the same production-linked suite. Linux cross-publish of the complete Windows application: succeeded; one preexisting CS8602 warning in PerformanceDashboard.cs:341.
+Task 3: in progress. Windows Actions 40835676433 on branch codex/devicepulse-0.9.14-sensor-coverage, commit 099770948fb4ae710b1e55f71a393e60e3625ec2. Independent code review running.
+Implementation decisions: use the latest actually buildable 0.9.11 source as a separate 0.9.14 development build because 0.9.13 has no corresponding source. Keep AIDA64 as its documented optional shared-memory publisher. Use smartmontools as a separate GPL process with its corresponding source and pinned database; do not claim universal vendor coverage. Preserve unknown/contradictory values instead of assigning healthy percentages.
+
+Final review: independent reviewer found two important issues (guessed ATA endurance could show false 100%; later disks could starve under cycle budget) and one minor issue (lost firmware slot count). All addressed in one fix pass. RED: 3/59 endurance tests and 2/62 scheduler/slot tests failed as expected; GREEN: 62/62. ATA lifetime now requires native valid ACS page 7 offset 8 or the existing narrowly validated manufacturer profile. Scheduler rotates after every attempted probe and does not reuse stale sensor samples. Firmware slot counts remain when consistent. No deferred review findings. First Windows run 40835676433 passed all existing UI/self-test/audit checks, but its artifact is superseded by these correctness fixes and will not be delivered.
