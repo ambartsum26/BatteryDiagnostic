@@ -101,6 +101,25 @@ internal static class AuditVisualTests
                     Check(label.Right<=label.Parent.ClientSize.Width,"battery metadata fits width: "+field+" / "+lang+" / "+scene);
                 }
             }
+            // Explicit inline expansion at minimum supported window size.
+            // A long evidence fixture verifies that scrolling stays inside the card.
+            form.Size=new Size(1000,740);form.SelectPage(false);
+            var verbose=new Reading{Design=60000,Full=54000,Capacity=27000,State=7,BatteryModel="Synthetic battery",
+                Observation=new(12,40,Enumerable.Repeat("shortObservation",12).ToArray(),12)};
+            form.View.SetData(new([verbose],null,DateTimeOffset.Now,"Synthetic"),verbose,lang,"",true);
+            var infoLink=(LinkLabel)typeof(Dashboard).GetField("informationLink",BindingFlags.Instance|BindingFlags.NonPublic)!.GetValue(form.View)!;
+            var infoLabel=(Label)typeof(Dashboard).GetField("informationDetails",BindingFlags.Instance|BindingFlags.NonPublic)!.GetValue(form.View)!;
+            var infoScroll=(FlowLayoutPanel)typeof(Dashboard).GetField("details",BindingFlags.Instance|BindingFlags.NonPublic)!.GetValue(form.View)!;
+            typeof(LinkLabel).GetMethod("OnLinkClicked",BindingFlags.Instance|BindingFlags.NonPublic)!.Invoke(infoLink,[new LinkLabelLinkClickedEventArgs(new LinkLabel.Link())]);
+            Application.DoEvents();form.View.PerformLayout();infoScroll.PerformLayout();
+            Check(infoLabel.Visible&&infoLabel.Text.Length>500,"expanded battery evidence present / "+lang);
+            Check(infoScroll.AutoScroll&&infoLabel.Right<=infoScroll.ClientSize.Width,"expanded battery text wraps within scroll card / "+lang);
+            Check(infoScroll.DisplayRectangle.Height>infoScroll.ClientSize.Height,"long battery evidence scrolls vertically / "+lang);
+            Check(infoLink.Right<=infoLink.Parent!.ClientSize.Width,"inline collapse action remains reachable / "+lang);
+            infoScroll.AutoScrollPosition=Point.Empty;Capture(L.Code(lang)+"-battery-details-expanded-top");
+            infoScroll.AutoScrollPosition=new Point(0,infoScroll.VerticalScroll.Maximum);Capture(L.Code(lang)+"-battery-details-expanded-bottom");
+            typeof(LinkLabel).GetMethod("OnLinkClicked",BindingFlags.Instance|BindingFlags.NonPublic)!.Invoke(infoLink,[new LinkLabelLinkClickedEventArgs(new LinkLabel.Link())]);
+            Check(!infoLabel.Visible,"inline evidence collapses after reading / "+lang);
             var smartDisk=disk with{SmartAttributes=[new(5,100,100,10,0,true),new(0xC5,100,100,0,1,false)],Diagnostics=["Synthetic diagnostics: no physical disk accessed"]};
             using var smart=new StorageDetailsForm(()=>new(DateTimeOffset.Now,[smartDisk],[]),smartDisk.DeviceId,lang);
             smart.Show(form);smart.Render();Application.DoEvents();
