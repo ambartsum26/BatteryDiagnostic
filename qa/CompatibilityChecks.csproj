@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable><EnableDefaultCompileItems>false</EnableDefaultCompileItems></PropertyGroup>
+  <ItemGroup>
+    <Compile Include="CompatibilityEntry.cs" /><Compile Include="CompatibilityTests.cs" />
+    <Compile Include="../overlays/src/SmartctlParser.cs" />
+    <Compile Include="../overlays/src/StorageModels.cs" /><Compile Include="../overlays/src/SmartctlMerge.cs" />
+    <Compile Include="../overlays/src/MemoryCompatibility.cs" />
+    <Compile Include="../overlays/src/CpuSensorSupport.cs" />
+  </ItemGroup>
+</Project>

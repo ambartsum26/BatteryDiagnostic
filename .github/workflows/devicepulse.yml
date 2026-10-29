@@ -1,7 +1,7 @@
-name: DevicePulse 0.9.11 integrated PawnIO French
+name: DevicePulse 0.9.14 integrated PawnIO French
 on:
   push:
-    branches: [build/devicepulse-0.9.11-final-audit]
+    branches: [codex/devicepulse-0.9.14-sensor-coverage]
   workflow_dispatch:
 permissions:
   contents: read
@@ -19,6 +19,8 @@ jobs:
           Copy-Item overlays/src/* src/ -Recurse -Force
           Copy-Item qa/UpgradeTests.cs src/UpgradeTests.cs
           Copy-Item qa/InstallerTests.cs src/InstallerTests.cs
+          Copy-Item qa/CompatibilityTests.cs src/CompatibilityTests.cs
+          Copy-Item qa/SensorProviderTests.cs src/SensorProviderTests.cs
           $p = Get-Content src/Program.cs -Raw
           $p = $p.Replace('            // Automatically activate', '            if(args.Contains("--upgrade-test")) { ApplicationConfiguration.Initialize();UpgradeTests.Run();return; }' + [Environment]::NewLine + '            if(args.Contains("--installer-self-test")) { ApplicationConfiguration.Initialize();InstallerTests.Run();return; }' + [Environment]::NewLine + '            // Automatically activate')
           Set-Content src/Program.cs $p
@@ -81,6 +83,28 @@ jobs:
           Copy-Item src/ThirdParty/libcdi/LICENSE.txt publish-win-x64/libcdi-LICENSE.txt
           Remove-Item nwinfo.zip -Force
           Remove-Item nwinfo-unpacked -Recurse -Force
+      - name: Package verified smartmontools and complete model database without running installer
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $installer = 'https://github.com/smartmontools/smartmontools/releases/download/RELEASE_7_5/smartmontools-7.5.win32-setup.exe'
+          Invoke-WebRequest $installer -OutFile smartmontools-setup.exe
+          if ((Get-FileHash smartmontools-setup.exe -Algorithm SHA256).Hash -ine '896337FCC253220614CF8CDBD5CF2321C5AA326A37A04160A672A281E6104C70') { throw 'smartmontools installer hash mismatch' }
+          & 'C:/Program Files/7-Zip/7z.exe' x smartmontools-setup.exe '-osmartmontools-unpacked' -y | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot extract smartmontools without installation' }
+          $target = Join-Path $PWD 'publish-win-x64/smartmontools'
+          New-Item $target -ItemType Directory -Force | Out-Null
+          Copy-Item smartmontools-unpacked/bin/smartctl.exe $target/smartctl.exe
+          if ((Get-FileHash $target/smartctl.exe -Algorithm SHA256).Hash -ine 'B5DB94E5082C042BE44994B7A4FA8F7B5C8E713B2AB1C9A560D8F7A7995EA27D') { throw 'smartctl x64 hash mismatch' }
+          Copy-Item smartmontools-unpacked/doc/COPYING.txt $target/COPYING.txt
+          Invoke-WebRequest 'https://raw.githubusercontent.com/smartmontools/smartmontools/764fcfb2472920fcaeb62950e60cb8bf3f983065/smartmontools/drivedb.h' -OutFile $target/drivedb.h
+          if ((Get-FileHash $target/drivedb.h -Algorithm SHA256).Hash -ine '428F9D56357CD35056719E1EF3FE2EFF87B5AE7499E7797E0811C38B2DBB7079') { throw 'drivedb hash mismatch' }
+          Invoke-WebRequest 'https://github.com/smartmontools/smartmontools/releases/download/RELEASE_7_5/smartmontools-7.5.tar.gz' -OutFile $target/smartmontools-7.5-source.tar.gz
+          if ((Get-FileHash $target/smartmontools-7.5-source.tar.gz -Algorithm SHA256).Hash -ine '690B83CA331378DA9EA0D9D61008C4B22DDE391387B9BBAD7F29387F2595F76E') { throw 'smartmontools corresponding source hash mismatch' }
+          & $target/smartctl.exe --version | Set-Content $target/VERSION.txt
+          if ($LASTEXITCODE -ne 0) { throw 'smartctl version check failed' }
+          Copy-Item docs/SENSOR-COMPATIBILITY.md publish-win-x64/SENSOR-COMPATIBILITY.md
+          # Version display only. No physical devices, SMART commands or installers run in CI.
       - name: Run synthetic self-tests without hardware activation
         shell: pwsh
         run: |
@@ -127,7 +151,7 @@ jobs:
           }
       - uses: actions/upload-artifact@v4
         with:
-          name: DevicePulse-0.9.11-UI-preview
+          name: DevicePulse-0.9.14-UI-preview
           path: publish-win-x64/ui-preview/
           if-no-files-found: error
       - name: Keep previews out of portable package
@@ -187,12 +211,12 @@ jobs:
       - name: Package complete build with French driver installation
         shell: pwsh
         run: |
-          Copy-Item FINAL-TEST-REPORT-RU.md publish-win-x64/FINAL-TEST-REPORT-RU.md
+          Copy-Item docs/SENSOR-COMPATIBILITY.md publish-win-x64/FINAL-TEST-REPORT-RU.md
           Copy-Item CHECK-SENSORS.cmd publish-win-x64/CHECK-SENSORS.cmd
           Copy-Item src/ThirdPartyNotices.txt publish-win-x64/ThirdPartyNotices.txt
           Copy-Item pawnio-verification.txt publish-win-x64/pawnio-verification.txt
           @'
-          DevicePulse 0.9.11 — Windows x64. Extrayez le ZIP puis lancez DevicePulse.exe. Acceptez la demande administrateur de Windows. Si le pilote est absent et le processeur pris en charge, une fenêtre en français propose Installer ou Plus tard. Le programme officiel signé PawnIO 2.2.0 est intégré au fichier EXE; aucun téléchargement du pilote n’est nécessaire. Le pilote reste installé dans Windows. Un redémarrage peut être nécessaire. Les versions de pilote déjà présentes ne sont pas remplacées automatiquement.
+          DevicePulse 0.9.14 — Windows x64. Extrayez le ZIP puis lancez DevicePulse.exe. Acceptez la demande administrateur de Windows. Si le pilote est absent et le processeur pris en charge, une fenêtre en français propose Installer ou Plus tard. Le programme officiel signé PawnIO 2.2.0 est intégré au fichier EXE; aucun téléchargement du pilote n’est nécessaire. Le pilote reste installé dans Windows. Un redémarrage peut être nécessaire. Les versions de pilote déjà présentes ne sont pas remplacées automatiquement.
           '@ | Set-Content publish-win-x64/LIRE-MOI.txt
           @'
           Распакуйте ZIP и запустите DevicePulse.exe. Права администратора запрашиваются автоматически. Установщик PawnIO 2.2.0 встроен в EXE. Если драйвер отсутствует и CPU поддерживается, появится французское окно Installer / Plus tard. Установка только после подтверждения; драйвер остаётся в Windows. Иногда нужна перезагрузка. Существующий драйвер автоматически не заменяется.
@@ -201,12 +225,31 @@ jobs:
           Official unchanged PawnIO.Setup 2.2.0: https://github.com/namazso/PawnIO.Setup/releases/tag/2.2.0 . Embedded installer SHA256: 1F519A22E47187F70A1379A48CA604981C4FCF694F4E65B734AAA74A9FBA3032 . Authenticode verified in CI and rechecked at runtime before explicit user-approved installation.
           '@ | Set-Content publish-win-x64/PawnIO-NOTICE.txt
           @'
-          DevicePulse 0.9.11 win-x64. Runtime included. Full synthetic tests passed in non-elevated QA builds; final requireAdministrator manifest verified. Official installer integrity/signature and French consent UI verified. Driver installation and physical hardware were NOT tested in CI.
+          DevicePulse 0.9.14 win-x64. Runtime included. Full synthetic tests passed in non-elevated QA builds; final requireAdministrator manifest verified. Official installer integrity/signature and French consent UI verified. Driver installation and physical hardware were NOT tested in CI.
           '@ | Set-Content publish-win-x64/BUILD-INFO.txt
-          Get-ChildItem publish-win-x64 -File | Where-Object Name -ne SHA256SUMS.txt | ForEach-Object { $h = Get-FileHash $_.FullName -Algorithm SHA256; "$($h.Hash)  $($_.Name)" } | Set-Content publish-win-x64/SHA256SUMS.txt
+          Get-ChildItem publish-win-x64 -Recurse -File | Where-Object Name -ne SHA256SUMS.txt | ForEach-Object { $h = Get-FileHash $_.FullName -Algorithm SHA256; "$($h.Hash)  $([IO.Path]::GetRelativePath((Join-Path $PWD 'publish-win-x64'),$_.FullName))" } | Set-Content publish-win-x64/SHA256SUMS.txt
+      - name: Package complete reproducible application source
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          New-Item complete-source/src -ItemType Directory -Force | Out-Null
+          $sourceRoot = (Resolve-Path src).Path
+          foreach ($file in Get-ChildItem src -File -Recurse) {
+            $relative = [IO.Path]::GetRelativePath($sourceRoot, $file.FullName)
+            if ($relative -match '(^|[\\/])(bin|obj)[\\/]') { continue }
+            $target = Join-Path (Join-Path $PWD 'complete-source/src') $relative
+            New-Item ([IO.Path]::GetDirectoryName($target)) -ItemType Directory -Force | Out-Null
+            Copy-Item -LiteralPath $file.FullName -Destination $target
+          }
+          Copy-Item docs/SENSOR-COMPATIBILITY.md complete-source/README.md
+          Compress-Archive complete-source/* DevicePulse-0.9.14-complete-source.zip -CompressionLevel Optimal
       - uses: actions/upload-artifact@v4
-        if: always()
         with:
-          name: DevicePulse-0.9.11-Windows-x64-Admin-PawnIO-FR
+          name: DevicePulse-0.9.14-complete-source
+          path: DevicePulse-0.9.14-complete-source.zip
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DevicePulse-0.9.14-Windows-x64-Admin-PawnIO-FR
           path: publish-win-x64/
           if-no-files-found: error

@@ -16,16 +16,17 @@ internal static class LibrarySensors
     static double? cpu;
     static string diagnostic="LibreHardwareMonitor:NotSampled";
     internal static string Diagnostic {get {lock(Gate)return diagnostic;}}
-    internal static bool IsSupportedAmd
+    internal static bool IsSupportedCpu
     {
         get
         {
             if(!X86Base.IsSupported)return false;
-            var vendor=X86Base.CpuId(0,0);
-            if(vendor.Ebx!=0x68747541||vendor.Edx!=0x69746e65||vendor.Ecx!=0x444d4163)return false;
-            var id=X86Base.CpuId(1,0);int family=(id.Eax>>8)&15;
-            if(family==15)family+=(id.Eax>>20)&255;
-            return family is 0x17 or 0x19 or 0x1A;
+            var vendor=X86Base.CpuId(0,0);var id=X86Base.CpuId(1,0);
+            int family=(id.Eax>>8)&15;if(family==15)family+=(id.Eax>>20)&255;
+            string name=System.Text.Encoding.ASCII.GetString(BitConverter.GetBytes(vendor.Ebx)
+                .Concat(BitConverter.GetBytes(vendor.Edx)).Concat(BitConverter.GetBytes(vendor.Ecx)).ToArray());
+            bool dts=vendor.Eax>=6&&(X86Base.CpuId(6,0).Eax&1)!=0;
+            return CpuSensorSupport.Supports(name,family,dts);
         }
     }
     internal static (double? Cpu,GpuLive[] Gpus) ReadCached(GpuInventory[] adapters)
@@ -82,12 +83,12 @@ internal static class LibrarySensors
     internal static double? SelectCpuTemperature(IEnumerable<(SensorType Type,string Name,double? Value)> sensors)
     {
         var data=sensors.Where(s=>s.Type==SensorType.Temperature).ToArray();
-        foreach(string name in new[]{"CPU Package","Core (Tdie)","Core (Tctl/Tdie)"})
+        foreach(string name in new[]{"CPU Package","Core (Tdie)","Core (Tctl/Tdie)","CPU (Tdie)"})
         {
             var match=data.Where(s=>s.Name==name).ToArray();
             if(match.Length==1&&Temperature(match[0].Value) is {} value)return value;
         }
-        var cores=data.Where(s=>s.Name.StartsWith("CPU Core #",StringComparison.Ordinal)&&!s.Name.Contains("Distance",StringComparison.Ordinal)).ToArray();
+        var cores=data.Where(s=>(s.Name.StartsWith("CPU Core #",StringComparison.Ordinal)||s.Name.StartsWith("Core #",StringComparison.Ordinal))&&!s.Name.Contains("Distance",StringComparison.Ordinal)).ToArray();
         return cores.Length>0&&cores.All(s=>Temperature(s.Value).HasValue)?cores.Max(s=>Temperature(s.Value)):null;
     }
     static double? Temperature(double? value)=>value.HasValue&&double.IsFinite(value.Value)&&value is >=-40 and <=150?value:null;

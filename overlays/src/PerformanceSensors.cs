@@ -16,10 +16,6 @@ namespace BatteryDiagnostic;
 internal sealed record PerformanceInventory(CpuInventory Cpu, MemoryInventory Memory,
     IReadOnlyList<GpuInventory> Gpus, IReadOnlyList<string> Notes);
 internal sealed record CpuInventory(string? Model, int? PhysicalCores, int? LogicalProcessors, uint? MaxClockMHz);
-internal sealed record MemoryInventory(IReadOnlyList<MemoryModule> Modules, int? TotalSlots);
-internal sealed record MemoryModule(string? Slot, ulong? CapacityBytes, uint? ConfiguredSpeedMTs,
-    uint? RatedSpeedMTs, string? Manufacturer, string? PartNumber, string? ChipManufacturer,
-    uint? ConfiguredClockMHz = null, uint? RatedClockMHz = null, string? MemoryType = null);
 internal enum GpuKind { Unknown, Integrated, Dedicated, Software }
 internal sealed record GpuInventory(string Id, string? Model, GpuKind Kind, ulong? DedicatedMemoryBytes,
     ulong? SharedMemoryBytes, string? DriverVersion);
@@ -69,6 +65,21 @@ internal static class PerformanceSensors
             notes.Add(ex is System.ComponentModel.Win32Exception native
                 ? "Memory firmware inventory unavailable: Windows error " + native.NativeErrorCode
                 : "Memory firmware inventory unavailable: " + ex.GetType().Name);
+        }
+        if(memory.Modules.Count==0||memory.Modules.Any(m=>m.MemoryType is null))
+        {
+            var fields=new[]{"DeviceLocator","Capacity","ConfiguredClockSpeed","Speed","Manufacturer","PartNumber","SMBIOSMemoryType"};
+            var rows=QueryWmi("SELECT "+string.Join(",",fields)+" FROM Win32_PhysicalMemory",fields,4096);
+            var modules=rows.Select(row=>
+            {
+                object? Value(string key)=>row.TryGetValue(key,out var value)?value:null;
+                uint? Rate(string key)=>AsUInt64(Value(key)) is >0 and <=1000000 ? (uint)AsUInt64(Value(key))!.Value:null;
+                byte? code=AsUInt64(Value("SMBIOSMemoryType")) is {} n&&n<=255?(byte)n:null;
+                return new MemoryModule(Clean(Value("DeviceLocator")),AsUInt64(Value("Capacity")),Rate("ConfiguredClockSpeed"),Rate("Speed"),
+                    Clean(Value("Manufacturer")),Clean(Value("PartNumber")),null,MemoryType:code.HasValue?MemoryCompatibility.TypeName(code.Value):null);
+            }).ToArray();
+            memory=MemoryCompatibility.Merge(memory,modules);
+            notes.Add("Memory fallback: Win32_PhysicalMemory SMBIOSMemoryType; exact slot/capacity matching; no DDR generation inferred from speed.");
         }
         GpuInventory[] gpus;
         try { gpus = ReadDxgiAdapters(); }
@@ -298,14 +309,7 @@ internal static class PerformanceSensors
 
     // DMTF DSP0134, Memory Device (Type 17), Memory Type byte at offset 0x12.
     // Do not infer generation from transfer rate: DDR generations overlap.
-    static string? MemoryTypeName(byte code) => code switch
-    {
-        0x0f => "SDRAM", 0x11 => "RDRAM", 0x12 => "DDR", 0x13 => "DDR2",
-        0x14 => "DDR2 FB-DIMM", 0x18 => "DDR3", 0x19 => "FBD2", 0x1a => "DDR4",
-        0x1b => "LPDDR", 0x1c => "LPDDR2", 0x1d => "LPDDR3", 0x1e => "LPDDR4",
-        0x20 => "HBM", 0x21 => "HBM2", 0x22 => "DDR5", 0x23 => "LPDDR5",
-        0x24 => "HBM3", _ => null
-    };
+    static string? MemoryTypeName(byte code) => MemoryCompatibility.TypeName(code);
 
     static string? SmbiosString(string[] strings, byte index) => index > 0 && index <= strings.Length ? Clean(strings[index - 1]) : null;
 

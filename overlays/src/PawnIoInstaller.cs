@@ -55,7 +55,7 @@ internal static class PawnIoInstaller
             if(owner.IsDisposed||owner.Disposing)return;
             if(installed.State==CpuTemperatureState.Ready)
             {PerformanceCpuTemperature.EnableForProcess();return;}
-            bool supported=PerformanceCpuTemperature.CheckProcessorSupport().State==CpuTemperatureState.Ready||LibrarySensors.IsSupportedAmd;
+            bool supported=PerformanceCpuTemperature.CheckProcessorSupport().State==CpuTemperatureState.Ready||LibrarySensors.IsSupportedCpu;
             if(!ShouldOffer(supported,true,installed.State,args)||Interlocked.Exchange(ref offered,1)!=0)return;
             using var dialog=BuildDialog();
             if(dialog.ShowDialog(owner)!=DialogResult.OK)return;
