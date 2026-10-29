@@ -82,15 +82,16 @@ internal static class AuditVisualTests
                 Capture(L.Code(lang)+"-performance-"+scene);
             }
             form.SelectPage(false);
-            foreach(string scene in new[]{"normal","critical","medium","above-design","conflict","no-battery","error","long-metadata"})
+            foreach(string scene in new[]{"normal","critical","medium","above-design","conflict","no-battery","error","long-metadata","long-metadata-warnings"})
             {
                 var r=new Reading{Design=60000,Full=54000,Capacity=27000,State=1,BatteryModel="Synthetic battery",Manufacturer="Synthetic manufacturer",Observation=new(12,40,[],12)};
                 if(scene=="critical"){r.Full=15000;r.Capacity=1000;r.State=10;}
                 if(scene=="medium")r.Full=36000;
                 if(scene=="above-design")r.Full=65000;
                 if(scene=="conflict")r.State=7;
-                if(scene=="long-metadata"){r.BatteryModel=new string('W',85);r.Manufacturer="Fabricant de démonstration / Производитель — "+new string('M',80);}
-                form.Size=scene=="long-metadata"?new Size(1000,740):new Size(1120,860);
+                if(scene.StartsWith("long-metadata",StringComparison.Ordinal)){r.BatteryModel=new string('W',85);r.Manufacturer="Fabricant de démonstration / Производитель — "+new string('M',80);}
+                if(scene=="long-metadata-warnings"){r.State=14;r.Temperature=55;}
+                form.Size=scene.StartsWith("long-metadata",StringComparison.Ordinal)?new Size(1000,740):new Size(1120,860);
                 var data=new BatteryData(scene is "no-battery" or "error"?[]:[r],null,DateTimeOffset.Now,"Synthetic test system");
                 form.View.SetData(scene=="error"?null:data,scene is "no-battery" or "error"?null:r,lang,scene=="error"?"Synthetic source read failure":"",true);
                 Capture(L.Code(lang)+"-battery-"+scene);

@@ -37,7 +37,7 @@ internal sealed class Dashboard : UserControl
         // Only the metadata card sizes to its text. Preserve the existing
         // health, charge and capacity groups without introducing scrolling.
         root.RowStyles.Add(new RowStyle(SizeType.Percent,100));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute,164));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute,140));
         root.RowStyles.Add(new RowStyle(SizeType.Absolute,132));
         root.RowStyles.Add(new RowStyle(SizeType.Absolute,28));
         root.RowStyles.Add(new RowStyle(SizeType.Absolute,26));
@@ -46,6 +46,7 @@ internal sealed class Dashboard : UserControl
 
         // Two original result groups, reorganized without changing the data source.
         var primary=new TableLayoutPanel{Dock=DockStyle.Fill,ColumnCount=2,RowCount=1,Margin=Padding.Empty};
+        primary.RowStyles.Add(new RowStyle(SizeType.Percent,100));
         primary.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,55));
         primary.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,45));
         var healthCard=Card(0,6);var chargeCard=Card(6,0);
@@ -58,11 +59,11 @@ internal sealed class Dashboard : UserControl
         healthHeader.ColumnStyles[1].Width=0;
         healthHeader.Controls.Add(healthCaption,0,0);
         var healthBody=new TableLayoutPanel{Dock=DockStyle.Fill,ColumnCount=2,RowCount=1,Margin=Padding.Empty};
+        healthBody.RowStyles.Add(new RowStyle(SizeType.Percent,100));
         healthBody.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,47));healthBody.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,53));
-        var healthCopy=new TableLayoutPanel{Dock=DockStyle.Fill,ColumnCount=1,RowCount=3,Margin=Padding.Empty};
-        healthCopy.RowStyles.Add(new RowStyle(SizeType.Percent,35));
-        healthCopy.RowStyles.Add(new RowStyle(SizeType.Percent,40));
-        healthCopy.RowStyles.Add(new RowStyle(SizeType.Percent,25));
+        var healthCopy=new TableLayoutPanel{Dock=DockStyle.Fill,ColumnCount=1,RowCount=2,Margin=Padding.Empty};
+        healthCopy.RowStyles.Add(new RowStyle(SizeType.Absolute,26));
+        healthCopy.RowStyles.Add(new RowStyle(SizeType.Percent,100));
         healthValue.TextAlign=ContentAlignment.MiddleLeft;
         healthCopy.Controls.Add(batteryTitle,0,0);healthCopy.Controls.Add(healthValue,0,1);
         healthBody.Controls.Add(healthRing,0,0);healthBody.Controls.Add(healthCopy,1,0);
@@ -187,7 +188,7 @@ internal sealed class Dashboard : UserControl
         }
                 if(observation!=null)messages.AddRange(observation.Findings.Select(code=>T("quality")+": "+T(code)));
         string allMessages=string.Join(Environment.NewLine,messages);
-        notice.Text=messages.Count>0?messages[0]+(messages.Count>1?L.F(lang,"moreFindings",messages.Count-1):""):"";
+        notice.Text=string.Join(" · ",messages.Distinct());
         notice.Visible=messages.Count>0;notice.Cursor=Cursors.Default;
         detailTime.AccessibleDescription=string.Join(Environment.NewLine,evidence);
         notice.AccessibleDescription=allMessages;
@@ -217,8 +218,12 @@ internal sealed class Dashboard : UserControl
                 manufacturer.GetPreferredSize(new Size(makerWidth,0)).Height);
             int second=detailTime.GetPreferredSize(new Size(width,0)).Height+detailTime.Margin.Vertical;
             details.RowStyles[0].Height=first;details.RowStyles[1].Height=second;
-            // Include the existing card's padding, margin and 34px heading.
-            root.RowStyles[4].Height=12+28+34+details.Padding.Vertical+first+second+2;
+            // Read the actual scaled geometry: Windows DPI scaling changes
+            // card padding, margins and the heading row before a refresh.
+            var layout=(TableLayoutPanel)details.Parent!;var card=layout.Parent!;
+            root.RowStyles[4].Height=card.Margin.Vertical+card.Padding.Vertical+layout.RowStyles[0].Height
+                +details.Padding.Vertical+first+second+Math.Max(2,2*DeviceDpi/96f);
+            root.RowStyles[5].Height=notice.Text.Length>0?Math.Max(28*DeviceDpi/96f,notice.GetPreferredSize(new Size(Math.Max(1,root.ClientSize.Width-root.Padding.Horizontal),0)).Height):0;
         }
         finally{arrangingMetadata=false;}
     }

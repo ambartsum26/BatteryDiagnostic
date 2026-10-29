@@ -45,6 +45,32 @@ internal static class LayoutTests
                 Check(label.Visible&&label.Top>=0&&label.Bottom<=details.ClientSize.Height&&label.Right<=details.ClientSize.Width,"Battery metadata fully visible: "+name+" / "+lang);
                 Check(label.GetPreferredSize(new Size(label.Width,0)).Height<=label.Height,"Battery metadata text fits: "+name+" / "+lang);
             }
+            reading.State=14;reading.Temperature=55;
+            battery.Visible=false;
+            battery.SetData(new([reading],null,DateTimeOffset.Now,"Fixture"),reading,lang,"",true);
+            battery.Visible=true;Application.DoEvents();
+            var notice=(Label)Field(battery,"notice")!;
+            var assessment=Engine.Evaluate(reading,lang);
+            Check(assessment.Signals.Concat(assessment.Notes).All(notice.Text.Contains),"Every battery warning remains visible without a popup / "+lang);
+            Check(notice.Height>=notice.GetPreferredSize(new Size(notice.Width,0)).Height,"Warnings fit immediately after opening the battery tab / "+lang);
+            Check(battery.Gauge.Height>=24,"Charge gauge keeps a readable compact viewport / "+lang);
+            var health=(Label)Field(battery,"healthValue")!;
+            Check(health.Height>=health.GetPreferredSize(new Size(health.Width,0)).Height,"Health grade fits with long metadata and multiple warnings / "+lang);
+            foreach(float factor in new[]{1.5f,4f/3f})
+            {
+                // Synthetic geometry scaling verifies the resized margins/header;
+                // physical monitor DPI is explicitly outside this fixture.
+                host.Scale(new SizeF(factor,factor));
+                battery.SetData(new([reading],null,DateTimeOffset.Now,"Fixture"),reading,lang,"",true);
+                Application.DoEvents();battery.PerformLayout();
+                foreach(string name in new[]{"batteryModel","manufacturer","detailTime"})
+                {
+                    var label=(Label)Field(battery,name)!;
+                    Check(label.Bottom<=details.ClientSize.Height&&label.GetPreferredSize(new Size(label.Width,0)).Height<=label.Height,
+                        "Scaled battery metadata remains visible: "+name+" / "+factor+" / "+lang);
+                }
+                Check(notice.Height>=notice.GetPreferredSize(new Size(notice.Width,0)).Height,"All warning text fits scaled notice / "+factor+" / "+lang);
+            }
             host.Close();
         }
         File.WriteAllText(Path.Combine(AppContext.BaseDirectory,"layout-tests.txt"),failures.Count==0?$"PASS {count} layout/color checks in FR/EN/RU.":$"FAIL {failures.Count}/{count}: "+string.Join("; ",failures));

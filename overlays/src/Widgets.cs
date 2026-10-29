@@ -40,6 +40,25 @@ internal sealed class BatteryGauge : Control
     protected override void OnPaint(PaintEventArgs e)
     {
         base.OnPaint(e); var g=e.Graphics; g.SmoothingMode=SmoothingMode.AntiAlias; g.TextRenderingHint=TextRenderingHint.ClearTypeGridFit;
+        if(Height<110*DeviceDpi/96f)
+        {
+            // Keep the same charge readout legible in the existing card when
+            // long metadata or warnings leave a short viewport.
+            float compactScale=Math.Min(Width/240f,Height/62f);
+            if(compactScale<=0)return;
+            g.TranslateTransform((Width-240*compactScale)/2,(Height-62*compactScale)/2);g.ScaleTransform(compactScale,compactScale);
+            using var shape=Theme.Round(new RectangleF(10,10,100,42),7);
+            using var edge=new Pen(Theme.Muted,2);using var terminalBrush=new SolidBrush(Theme.Muted);
+            g.DrawPath(edge,shape);g.FillRectangle(terminalBrush,112,23,6,16);
+            using var track=new SolidBrush(Theme.Border);g.FillRectangle(track,16,16,88,30);
+            if(charge.Percent is {} current)
+            {using var fill=new SolidBrush(current<=15?Theme.Warning:Theme.Accent);g.FillRectangle(fill,16,16,88*(float)Math.Clamp(current/100,0,1),30);}
+            using var numberFont=new Font("Segoe UI",26,FontStyle.Bold,GraphicsUnit.Pixel);
+            using var numberBrush=new SolidBrush(charge.Percent.HasValue?Theme.Accent:Theme.Muted);
+            using var align=new StringFormat{LineAlignment=StringAlignment.Center,Alignment=StringAlignment.Center};
+            g.DrawString(percentage,numberFont,numberBrush,new RectangleF(127,7,110,48),align);
+            return;
+        }
         float scale=Math.Min(Width/240f,Height/260f);
         g.TranslateTransform((Width-240*scale)/2,(Height-260*scale)/2); g.ScaleTransform(scale,scale);
         var body=new RectangleF(53,18,134,228);
