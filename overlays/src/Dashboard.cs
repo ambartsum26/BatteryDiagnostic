@@ -207,7 +207,8 @@ internal sealed class Dashboard : UserControl
     }
     void WrapMetadata()
     {
-        if(details==null||arrangingMetadata||details.ClientSize.Width<100)return;
+        if(details==null||arrangingMetadata||details.ClientSize.Width<100
+            ||details.Parent is not TableLayoutPanel layout||layout.Parent is not {} card)return;
         arrangingMetadata=true;
         try
         {
@@ -220,7 +221,6 @@ internal sealed class Dashboard : UserControl
             details.RowStyles[0].Height=first;details.RowStyles[1].Height=second;
             // Read the actual scaled geometry: Windows DPI scaling changes
             // card padding, margins and the heading row before a refresh.
-            var layout=(TableLayoutPanel)details.Parent!;var card=layout.Parent!;
             root.RowStyles[4].Height=card.Margin.Vertical+card.Padding.Vertical+layout.RowStyles[0].Height
                 +details.Padding.Vertical+first+second+Math.Max(2,2*DeviceDpi/96f);
             root.RowStyles[5].Height=notice.Text.Length>0?Math.Max(28*DeviceDpi/96f,notice.GetPreferredSize(new Size(Math.Max(1,root.ClientSize.Width-root.Padding.Horizontal),0)).Height):0;
