@@ -53,6 +53,7 @@ internal static class NavigationTests
             Check(indicator.AccessibleDescription?.Length==1000,"Screen-reader detail retained / "+lang);
             using var form=new MainForm();
             Check(NoTips(form),"No window-button tooltips / "+lang);
+            Check(!form.LanguageMenu.ShowItemToolTips,"No language-menu balloons / "+lang);
         }
         File.WriteAllText(Path.Combine(AppContext.BaseDirectory,"navigation-tests.txt"),failures.Count==0?
             $"PASS {count} navigation checks: no tooltip providers, no SMART balloons, inline battery details, explicit SMART, FR/EN/RU.":

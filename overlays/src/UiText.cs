@@ -121,7 +121,7 @@ internal static class L
         ["jumpFull"] = ("Capacité à pleine charge modifiée de >5 % en ≤10 s : estimation du contrôleur instable ; panne non confirmée.", "Full-charge capacity changed by >5% within ≤10 s: controller estimate unstable; fault not confirmed.", "Полная ёмкость изменилась более чем на 5% за ≤10 с: оценка контроллера нестабильна; неисправность не подтверждена."),
         ["percentDisagreement"] = ("Écart >5 points entre Windows et capacité restante / pleine. Ces sources ne sont pas des mesures indépendantes.", "Windows and remaining/full capacity differ by >5 percentage points. These sources are not independent measurements.", "Процент Windows и отношение оставшейся/полной ёмкости расходятся более чем на 5 п. п. Источники не являются независимыми измерениями."),
         ["rateConflict"] = ("Sens de puissance incohérent avec les indicateurs charge/décharge pendant ≥3 lectures sur ≥4 s (>100 mW). Vérifier les données ; panne non confirmée.", "Power direction contradicts charge/discharge flags for ≥3 readings over ≥4 s (>100 mW). Check reporting; fault not confirmed.", "Знак мощности противоречит флагам зарядки/разрядки ≥3 чтения за ≥4 с (>100 мВт). Проверьте данные; неисправность не подтверждена."),
-        ["moreFindings"] = (" · {0} autres remarques (survoler)", " · {0} more notes (hover)", " · ещё {0} замечаний (наведите курсор)"),
+        ["moreFindings"] = (" · {0} autres remarques", " · {0} more notes", " · ещё {0} замечаний"),
         ["live"] = ("Données actualisées automatiquement", "Automatically updated readings", "Автоматически обновляемые показания"),
     };
 }

@@ -12,7 +12,10 @@ internal sealed class Dashboard : UserControl
     readonly Label detailTime=LabelFor(11,false,Theme.Muted),notice=LabelFor(10,false,Theme.Warning),scope=LabelFor(10,false,Theme.Muted);
     readonly Label capacityTitle=LabelFor(13,true),detailsTitle=LabelFor(13,true);
     readonly FlowLayoutPanel details=new() {Dock=DockStyle.Fill,AutoSize=false,AutoScroll=true,FlowDirection=FlowDirection.TopDown,WrapContents=false,Padding=new Padding(0,5,0,0),Margin=Padding.Empty};
-    readonly ToolTip tips=new() {AutoPopDelay=20000,InitialDelay=350};
+    readonly LinkLabel informationLink=new(){Dock=DockStyle.Fill,TextAlign=ContentAlignment.MiddleRight,LinkColor=Theme.Accent,
+        ActiveLinkColor=Theme.Text,VisitedLinkColor=Theme.Accent,BackColor=Theme.Card,TabStop=true,Margin=Padding.Empty};
+    readonly Label informationDetails=LabelFor(10,false,Theme.Muted);
+    bool informationExpanded;
     readonly BatteryHealthRing healthRing=new() {Dock=DockStyle.Fill};
     internal readonly BatteryGauge Gauge=new() {Dock=DockStyle.Fill,Margin=Padding.Empty};
     internal readonly IndicatorWidget HealthIndicator=new(true), ChargeIndicator=new(false);
@@ -105,7 +108,18 @@ internal sealed class Dashboard : UserControl
             label.Dock=DockStyle.None;label.AutoSize=true;label.Margin=new Padding(0,0,0,9);details.Controls.Add(label);
         }
         details.SizeChanged+=(_,_)=>WrapMetadata();
-        metadataLayout.Controls.Add(detailsTitle,0,0);metadataLayout.Controls.Add(details,0,1);metadataCard.Controls.Add(metadataLayout);
+        var metadataHeader=new TableLayoutPanel{Dock=DockStyle.Fill,ColumnCount=2,RowCount=1,Margin=Padding.Empty};
+        metadataHeader.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));metadataHeader.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute,150));
+        metadataHeader.Controls.Add(detailsTitle,0,0);metadataHeader.Controls.Add(informationLink,1,0);
+        informationDetails.Dock=DockStyle.None;informationDetails.AutoSize=true;informationDetails.Margin=new Padding(0,4,0,9);informationDetails.Visible=false;
+        details.Controls.Add(informationDetails);
+        informationLink.LinkClicked+=(_,_)=>
+        {
+            informationExpanded=!informationExpanded;informationDetails.Visible=informationExpanded;
+            informationLink.Text=PerfText.Get(lang,informationExpanded?"detailsCollapse":"detailsExpand");
+            informationLink.AccessibleName=informationLink.Text;WrapMetadata();
+        };
+        metadataLayout.Controls.Add(metadataHeader,0,0);metadataLayout.Controls.Add(details,0,1);metadataCard.Controls.Add(metadataLayout);
         notice.TextAlign=ContentAlignment.MiddleLeft;scope.TextAlign=ContentAlignment.MiddleLeft;
         root.Controls.Add(heading,0,0);root.Controls.Add(model,0,1);root.Controls.Add(primary,0,2);
         root.Controls.Add(capacityCard,0,3);root.Controls.Add(metadataCard,0,4);root.Controls.Add(notice,0,5);root.Controls.Add(scope,0,6);
@@ -162,12 +176,8 @@ internal sealed class Dashboard : UserControl
         string chargeTip=L.F(lang,"chargeTip",percentage+" · "+state,power,T(charge.SourceKey));
         HealthIndicator.SetValue(assessment?.Retained,T("health"),healthValue.Text+Environment.NewLine+healthTip,assessment?.Grade);
         ChargeIndicator.SetValue(charge.Percent,T("charge"),chargeTip);
-        tips.SetToolTip(Gauge,chargeTip);
-        tips.SetToolTip(healthValue,healthTip); tips.SetToolTip(healthCaption,healthTip);
         batteryModel.Text=T("batteryModel")+": "+(reading?.BatteryModel??T("unknown"));
-        tips.SetToolTip(batteryModel,T("batteryModelTip"));
         manufacturer.Text=T("manufacturer")+": "+(reading?.Manufacturer??T("unknown"));
-        tips.SetToolTip(manufacturer,manufacturer.Text);
         var observation=reading?.Observation;
         detailTime.Text=observation!=null?L.F(lang,"observation",observation.Samples,observation.Seconds.ToString("0",L.Culture(lang))):T("observationUnknown");
                 int observationNotes=(observation?.Findings.Length??0)+(assessment?.Signals.Count??0)+(assessment?.Notes.Count??0);
@@ -177,8 +187,7 @@ internal sealed class Dashboard : UserControl
         else if(observationNotes==0)evidence.Add(T("noObservedSignal"));
         if(observation!=null)evidence.AddRange(observation.Findings.Select(T));
         if(assessment!=null){evidence.AddRange(assessment.Signals);evidence.AddRange(assessment.Notes);}
-        tips.SetToolTip(detailTime,string.Join(Environment.NewLine,evidence));
-        detailTime.Cursor=Cursors.Help;
+        detailTime.Cursor=Cursors.Default;
         scope.Text=T("scope");
         var messages=new List<string>();
         if(!loaded)messages.Add(T("waiting"));
@@ -192,8 +201,11 @@ internal sealed class Dashboard : UserControl
                 if(observation!=null)messages.AddRange(observation.Findings.Select(code=>T("quality")+": "+T(code)));
         string allMessages=string.Join(Environment.NewLine,messages);
         notice.Text=messages.Count>0?messages[0]+(messages.Count>1?L.F(lang,"moreFindings",messages.Count-1):""):"";
-        notice.Visible=messages.Count>0;notice.Cursor=Cursors.Help;
-        tips.SetToolTip(notice,allMessages+Environment.NewLine+string.Join(Environment.NewLine,evidence));
+        notice.Visible=messages.Count>0;notice.Cursor=Cursors.Default;
+        informationDetails.Text=string.Join(Environment.NewLine,new[]{healthTip,chargeTip,allMessages,string.Join(Environment.NewLine,evidence)}.Where(v=>!string.IsNullOrWhiteSpace(v)));
+        informationDetails.AccessibleDescription=informationDetails.Text;
+        informationLink.Text=PerfText.Get(lang,informationExpanded?"detailsCollapse":"detailsExpand");informationLink.AccessibleName=informationLink.Text;
+        informationDetails.Visible=informationExpanded;
         detailTime.AccessibleDescription=string.Join(Environment.NewLine,evidence);
         notice.AccessibleDescription=allMessages;
         notice.ForeColor=assessment?.Signals.Count>0?Theme.Danger:Theme.Warning;
@@ -214,7 +226,6 @@ internal sealed class Dashboard : UserControl
         // Reserve scrollbar width before wrapping, so the first appearance of
         // a vertical scrollbar cannot conceal the end of a metadata line.
         int width=Math.Max(1,details.ClientSize.Width-details.Padding.Horizontal-SystemInformation.VerticalScrollBarWidth);
-        foreach(var label in new[]{batteryModel,manufacturer,detailTime})label.MaximumSize=new Size(width,0);
+        foreach(var label in new[]{batteryModel,manufacturer,detailTime,informationDetails})label.MaximumSize=new Size(width,0);
     }
-    protected override void Dispose(bool disposing){if(disposing)tips.Dispose();base.Dispose(disposing);}
 }

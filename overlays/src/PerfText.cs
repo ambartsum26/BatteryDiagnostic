@@ -31,6 +31,8 @@ internal static class PerfText
     }
     static readonly Dictionary<string,(string Fr,string En,string Ru)> text=new()
     {
+        ["detailsExpand"]=("Plus de détails","More details","Подробнее"),
+        ["detailsCollapse"]=("Masquer les détails","Hide details","Скрыть подробности"),
         ["frequencyWindows"]=("Fréq. Windows","Windows clock","Частота ОС"),
         ["frequencyDriver"]=("Fréq. pilote","Driver clock","Частота драйвера"),
         ["configuredSpeed"]=("Débit configuré (firmware)","Configured rate (firmware)","Скорость по прошивке"),

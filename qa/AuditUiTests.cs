@@ -28,12 +28,9 @@ internal static class AuditUiTests
             typeof(PerformanceDashboard).GetField("live",BindingFlags.Instance|BindingFlags.NonPublic)!.SetValue(view,live with {Timestamp=DateTimeOffset.Now.AddMinutes(-2)});
             typeof(PerformanceDashboard).GetField("storage",BindingFlags.Instance|BindingFlags.NonPublic)!.SetValue(view,storage with {Timestamp=DateTimeOffset.Now.AddMinutes(-2)});
             Tick(view);
-            var tips=(ToolTip)Field(view,"tips");
             Check(!view.Selectors[2].Text.Contains("87"),"expired disk selector clears percentage / "+lang);
-            Check(!tips.GetToolTip(view.Selectors[2]).Contains("87")&&!tips.GetToolTip(view.Selectors[2]).Contains("43"),"expired disk tooltip clears measurements / "+lang);
-            var cpu=view.Controls.OfType<LinkLabel>().Single(c=>Equals(c.Tag,"cpu"));
-            Check(!tips.GetToolTip(cpu).Contains("63"),"expired CPU help clears temperature / "+lang);
             string stale=view.AccessibleDescription??"";
+            Check(!stale.Contains("87")&&!stale.Contains("43")&&!stale.Contains("63"),"expired readouts clear measurements / "+lang);
             Check(stale.Contains(T("storageStale"))&&stale.Contains(T("liveStale")),"accessible stale status / "+lang);
             Check(!stale.Contains(L.Percent(lang,37))&&!stale.Contains("23 "+T("gb")),"accessible stale usage and volume values cleared / "+lang);
             view.SetData(null,null,null,lang);
@@ -75,7 +72,7 @@ internal static class AuditUiTests
                 battery.SetData(new([reading],null,DateTimeOffset.Now,"Audit"),reading,lang,"",true);
                 var bottom=(Label)Field(battery,"bottomState");
                 Check(bottom.Text.Contains(L.Get(lang,state)),"visible battery state "+state+" / "+lang);
-                Check(((ToolTip)Field(battery,"tips")).GetToolTip(battery.Gauge).Contains(L.Get(lang,state)),"visible gauge help "+state+" / "+lang);
+                Check(battery.Gauge.AccessibleDescription?.Contains(L.Get(lang,state))==true,"accessible gauge state "+state+" / "+lang);
             }
         }
         Check(L.Get(UiLanguage.English,"health")=="Capacity retention","health grade is explicitly capacity retention");

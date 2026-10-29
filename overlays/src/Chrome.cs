@@ -5,7 +5,6 @@ namespace BatteryDiagnostic;
 internal sealed partial class MainForm
 {
     readonly CaptionButton minimize=new(false), maximize=new(false) {Tag="maximizeRestore",IsMaximize=true}, close=new(true);
-    ToolTip? chromeTips;
     [DllImport("user32.dll")] static extern bool ReleaseCapture();
     [DllImport("user32.dll")] static extern IntPtr SendMessage(IntPtr window,int message,IntPtr wParam,IntPtr lParam);
     void SetupChrome()
@@ -30,7 +29,6 @@ internal sealed partial class MainForm
         MouseEventHandler toggle=(_,e)=>{if(e.Button==MouseButtons.Left)ToggleWindowSize();};
         foreach(Control surface in new Control[]{bar,brand,appMark,appTitle})
         {surface.MouseDown+=move;surface.MouseDoubleClick+=toggle;}
-        chromeTips=new ToolTip(components);
         Controls.Add(bar);UpdateWindowCaption();
     }
     void ToggleWindowSize()
@@ -45,14 +43,13 @@ internal sealed partial class MainForm
         if(maximize==null)return;
         maximize.IsRestored=WindowState==FormWindowState.Maximized;
         maximize.AccessibleName=T(maximize.IsRestored?"restore":"maximize");
-        chromeTips?.SetToolTip(maximize,maximize.AccessibleName);maximize.Invalidate();
+        maximize.Invalidate();
     }
     protected override void OnResize(EventArgs e)
     {base.OnResize(e);UpdateWindowCaption();}
     void LocalizeChrome()
     {
         minimize.AccessibleName=T("minimize");close.AccessibleName=T("close");
-        chromeTips?.SetToolTip(minimize,T("minimize"));chromeTips?.SetToolTip(close,T("close"));
         UpdateWindowCaption();
     }
     protected override CreateParams CreateParams

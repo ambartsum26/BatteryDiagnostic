@@ -12,7 +12,6 @@ internal sealed class PerformanceDashboard : UserControl
     CpuBenchmarkState benchmarkState=CpuBenchmarkState.Idle;
     enum CpuBenchmarkState { Idle, Running, Complete, Cancelled, Failed }
     readonly LinkLabel cpuActivate=AccessLink("cpu"),diskAccess=AccessLink("diskAccess"),smartDetails=AccessLink("smartDetails");
-    readonly ToolTip tips=new() {AutoPopDelay=20000,InitialDelay=450,ReshowDelay=250};
     readonly Queue<(DateTimeOffset Time,double? Usage)> history=[];
     readonly System.Windows.Forms.Timer freshnessTimer=new() {Interval=1000};
     PerformanceLive? FreshLive=>live!=null&&(DateTimeOffset.Now-live.Timestamp).TotalSeconds is >=0 and <=10?live:null;
@@ -22,7 +21,7 @@ internal sealed class PerformanceDashboard : UserControl
     UiLanguage language=UiLanguage.French;
     bool updating;
     bool lastLiveFresh,lastStorageFresh;
-    string moduleKey="",gpuKey="",diskKey="",volumeKey="",tipKey="";
+    string moduleKey="",gpuKey="",diskKey="",volumeKey="";
     float viewScale=1,viewX,viewY;
     string T(string key)=>PerfText.Get(language,key);
     string Unknown=>T("unknown");
@@ -101,7 +100,6 @@ internal sealed class PerformanceDashboard : UserControl
         benchmarkButton.Text=T(benchmarkCancellation is null?"benchmarkStart":"benchmarkStop");
         benchmarkButton.AccessibleName=benchmarkButton.Text;
         benchmarkButton.AccessibleDescription=BenchmarkStatusText()+". "+T("benchmarkTip");
-        tips.SetToolTip(benchmarkButton,T("benchmarkTip"));
         UpdateAccessibleSummary();
     }
     async void BenchmarkButtonClicked(object? sender,EventArgs e)
@@ -178,7 +176,7 @@ internal sealed class PerformanceDashboard : UserControl
         {
             if(updating)return;
             if(c==disks)UpdateVolumes();
-            UpdateAccessibleSummary();UpdateTips();Invalidate();
+            UpdateAccessibleSummary();Invalidate();
         };
     }
     internal void AddSample(PerformanceLive sample)
@@ -187,9 +185,7 @@ internal sealed class PerformanceDashboard : UserControl
     }
     internal void SetData(PerformanceInventory? inv,PerformanceLive? current,StorageSnapshot? drives,UiLanguage lang)
     {
-        bool changedLanguage=language!=lang;
         inventory=inv;live=current;storage=drives;language=lang;
-        if(changedLanguage){tipKey="";tips.SetToolTip(this,null);}
         updating=true;
         try
         {
@@ -209,7 +205,7 @@ internal sealed class PerformanceDashboard : UserControl
         AccessibleName=T("heading");
         lastLiveFresh=FreshLive!=null;lastStorageFresh=StorageFresh;
         UpdateAccessibleSummary();
-        UpdateTips();Invalidate();
+        Invalidate();
     }
     void UpdateAccessibleSummary()
     {
@@ -297,65 +293,6 @@ internal sealed class PerformanceDashboard : UserControl
         var assessment=DiskAssessmentEngine.Evaluate(disk);
         if(assessment.Remaining is not {} value)return Unknown;
         return L.Percent(language,value)+" · "+T(assessment.Resource switch {DiskResourceGrade.Normal=>"lifeNormal",DiskResourceGrade.Low=>"lifeLow",_=>"lifeExhausted"});
-    }
-    string DiskExplanation()
-    {
-        var d=StorageFresh?SelectedDisk:null;
-        if(d==null)return T("health")+": "+Health(SelectedDisk)+Environment.NewLine+T("healthTip");
-        string source=T(d.HealthSource switch {"WindowsStorage"=>"sourceStorage","NvmeHealthLog"=>"sourceNvme","LibCdi"=>"sourceCdi","FailurePrediction"=>"sourcePrediction","AtaSmartThresholds"=>"sourceAta","AtaSmartSectors"=>"sourceSectors",_=>"unknown"});
-        string summary=PerfText.F(language,"diskSummary",d.TemperatureC is {} temperature?N(temperature)+" °C":Unknown,Number(d.PowerOnCount),Number(d.PowerOnHours));
-        var lines=new List<string> {d.Model,"CrystalDiskInfo: "+CdiStatus,T("health")+": "+Health(d),T("healthPercent")+": "+HealthPercentText(d),summary,T("basis")+": "+source};
-        lines.Add(T(d.MediaType=="HDD"?"hddPercentUnavailable":"lifePercentNote"));
-        if(d.NvmeAvailableSparePercent.HasValue)lines.Add(PerfText.F(language,"nvmeSpare",Number(d.NvmeAvailableSparePercent),Number(d.NvmeSpareThresholdPercent)));
-        lines.Add(T("mediaErrors")+": "+Number(d.NvmeMediaErrors));
-        if(d.NvmeCriticalWarning.HasValue)lines.Add(T("nvmeFlags")+": 0x"+d.NvmeCriticalWarning.Value.ToString("X2"));
-        var sensorLines=d.NvmeSensorTemperaturesC.Select((value,i)=>value.HasValue?"#"+(i+1)+": "+N(value.Value)+" °C":null).Where(s=>s!=null);
-        if(sensorLines.Any())lines.Add(T("temperature")+": "+string.Join("; ",sensorLines));
-        if(d.RemainingLifePercent.HasValue)lines.Add(T("lifeTip"));
-        if(d.RemainingLifeSource!="None")lines.Add(T("resourceSource")+": "+d.RemainingLifeSource);
-        if(d.TemperatureSource!="None")lines.Add(T("temperature")+": "+d.TemperatureSource);
-        if(d.PowerOnCount is {} cycles)lines.Add(T("powerCycles")+": "+N(cycles));
-        if(d.HostReadsBytes is {} readBytes)lines.Add(T("hostReads")+": "+N(Math.Floor(readBytes/1073741824d))+" GiB");
-        if(d.HostWritesBytes is {} writtenBytes)lines.Add(T("hostWrites")+": "+N(Math.Floor(writtenBytes/1073741824d))+" GiB");
-        if(d.FailurePredicted==false)lines.Add(T("noPrediction"));
-        if(d.HealthCode=="NoFailurePredicted")lines.Add(T("limitedSmart"));
-        if(d.SmartAttributes.Count>0)lines.Add(PerfText.F(language,"smartCount",d.SmartAttributes.Count));
-        if(d.Diagnostics.Any(code=>code.Contains("AccessDenied",StringComparison.Ordinal)))lines.Add(T("accessLimited"));
-        if(d.MediaType=="NonRotating")lines.Add(T("seekBasis"));
-        lines.Add(T("healthTip"));return string.Join(Environment.NewLine,lines);
-    }
-    void UpdateTips()
-    {
-        tips.SetToolTip(cpuActivate,CpuExplanation());
-        tips.SetToolTip(diskAccess,T("diskElevate"));
-        tips.SetToolTip(modules,string.Join(Environment.NewLine,new[]{T("installedRam")+": "+Memory(InstalledRamBytes),SelectedModule?.Slot,T("memoryType")+": "+(SelectedModule?.MemoryType??Unknown),MemoryManufacturer.Display(SelectedModule?.Manufacturer),SelectedModule?.Manufacturer,SelectedModule?.PartNumber,T("ramTip")}.Where(s=>!string.IsNullOrEmpty(s))));
-        tips.SetToolTip(gpus,(SelectedGpu?.Model??Unknown)+Environment.NewLine+T("gpuTip")+Environment.NewLine+T("gpuLoadBasis"));
-        tips.SetToolTip(disks,DiskExplanation());
-        tips.SetToolTip(volumes,SelectedVolume?.SharedAcrossDisks==true?T("sharedVolume")+Environment.NewLine+T("diskTip"):T("diskTip"));
-        tips.SetToolTip(this,tipKey=="diskTip"?DiskExplanation():tipKey=="cpuTip"?CpuExplanation():tipKey.Length>0?T(tipKey):null);
-    }
-    string CpuExplanation()
-    {
-        if(FreshLive?.CpuTemperatureC is {} temp)
-        {
-            string source=live.Notes.FirstOrDefault(n=>n.StartsWith("CPU temperature source: ",StringComparison.Ordinal))
-                ??"CPU temperature source: Unavailable";
-            return T("temperature")+": "+N(temp)+" °C"+Environment.NewLine+source;
-        }
-        string key=PerformanceCpuTemperature.ReadCached().State switch
-        {
-            CpuTemperatureState.Disabled=>"cpuDisabled",CpuTemperatureState.Starting=>"cpuStarting",
-            CpuTemperatureState.AdministratorRequired=>"cpuElevate",CpuTemperatureState.DriverNotInstalled=>"cpuDriverMissing",
-            CpuTemperatureState.DriverRejected=>"cpuDriverRejected",CpuTemperatureState.UnsupportedProcessor=>"cpuUnsupported",
-            CpuTemperatureState.Ready=>"cpuReady",_=>"cpuUnavailable"
-        };
-        return T("cpuTip")+Environment.NewLine+T(key);
-    }
-    protected override void OnMouseMove(MouseEventArgs e)
-    {
-        base.OnMouseMove(e);float x=(e.X-viewX)/viewScale,y=(e.Y-viewY)/viewScale;
-        string next=y is >=68 and <=296?(x<500?"cpuTip":"ramTip"):y is >=306 and <=672?(x<500?"gpuTip":"diskTip"):"";
-        if(next!=tipKey){tipKey=next;tips.SetToolTip(this,next=="diskTip"?DiskExplanation():next=="cpuTip"?CpuExplanation():next.Length>0?T(next):null);}
     }
     protected override void OnResize(EventArgs e){base.OnResize(e);PlaceSelectors();}
     void PlaceSelectors()
@@ -525,7 +462,7 @@ internal sealed class PerformanceDashboard : UserControl
         if(disposing)
         {
             benchmarkCancellation?.Cancel();
-            freshnessTimer.Stop();freshnessTimer.Dispose();tips.Dispose();
+            freshnessTimer.Stop();freshnessTimer.Dispose();
         }
         base.Dispose(disposing);
     }

@@ -210,26 +210,26 @@ jobs:
           if (!$actualLevel -or $actualLevel.level -ne 'requireAdministrator') { throw 'Production EXE is not requireAdministrator' }
           Copy-Item published.manifest publish-win-x64/published.manifest
           'PASS: requireAdministrator verified in compiled DevicePulse.exe. Production EXE not launched in CI; synthetic tests passed on the same source with asInvoker before republishing.' | Set-Content publish-win-x64/manifest-verification.txt
-      - name: Package complete build with French driver installation
+      - name: Package clean portable application
         shell: pwsh
         run: |
-          Copy-Item docs/SENSOR-COMPATIBILITY.md publish-win-x64/FINAL-TEST-REPORT-RU.md
-          Copy-Item CHECK-SENSORS.cmd publish-win-x64/CHECK-SENSORS.cmd
-          Copy-Item src/ThirdPartyNotices.txt publish-win-x64/ThirdPartyNotices.txt
-          Copy-Item pawnio-verification.txt publish-win-x64/pawnio-verification.txt
-          @'
-          DevicePulse 0.9.15 — Windows x64. Extrayez le ZIP puis lancez DevicePulse.exe. Acceptez la demande administrateur de Windows. Si le pilote est absent et le processeur pris en charge, une fenêtre en français propose Installer ou Plus tard. Le programme officiel signé PawnIO 2.2.0 est intégré au fichier EXE; aucun téléchargement du pilote n’est nécessaire. Le pilote reste installé dans Windows. Un redémarrage peut être nécessaire. Les versions de pilote déjà présentes ne sont pas remplacées automatiquement.
-          '@ | Set-Content publish-win-x64/LIRE-MOI.txt
-          @'
-          Распакуйте ZIP и запустите DevicePulse.exe. Права администратора запрашиваются автоматически. Установщик PawnIO 2.2.0 встроен в EXE. Если драйвер отсутствует и CPU поддерживается, появится французское окно Installer / Plus tard. Установка только после подтверждения; драйвер остаётся в Windows. Иногда нужна перезагрузка. Существующий драйвер автоматически не заменяется.
-          '@ | Set-Content publish-win-x64/README-RU.txt
+          $ErrorActionPreference = 'Stop'
+          New-Item portable-clean/smartmontools,portable-clean/licenses -ItemType Directory -Force | Out-Null
+          Copy-Item publish-win-x64/DevicePulse.exe portable-clean/DevicePulse.exe
+          Copy-Item publish-win-x64/libcdi.dll portable-clean/libcdi.dll
+          Copy-Item publish-win-x64/libcdi-LICENSE.txt portable-clean/licenses/libcdi-LICENSE.txt
+          Copy-Item src/ThirdPartyNotices.txt portable-clean/licenses/ThirdPartyNotices.txt
           @'
           Official unchanged PawnIO.Setup 2.2.0: https://github.com/namazso/PawnIO.Setup/releases/tag/2.2.0 . Embedded installer SHA256: 1F519A22E47187F70A1379A48CA604981C4FCF694F4E65B734AAA74A9FBA3032 . Authenticode verified in CI and rechecked at runtime before explicit user-approved installation.
-          '@ | Set-Content publish-win-x64/PawnIO-NOTICE.txt
-          @'
-          DevicePulse 0.9.15 win-x64. Runtime included. Full synthetic tests passed in non-elevated QA builds; final requireAdministrator manifest verified. Official installer integrity/signature and French consent UI verified. Driver installation and physical hardware were NOT tested in CI.
-          '@ | Set-Content publish-win-x64/BUILD-INFO.txt
-          Get-ChildItem publish-win-x64 -Recurse -File | Where-Object Name -ne SHA256SUMS.txt | ForEach-Object { $h = Get-FileHash $_.FullName -Algorithm SHA256; "$($h.Hash)  $([IO.Path]::GetRelativePath((Join-Path $PWD 'publish-win-x64'),$_.FullName))" } | Set-Content publish-win-x64/SHA256SUMS.txt
+          '@ | Set-Content portable-clean/licenses/PawnIO-NOTICE.txt
+          foreach ($name in @('smartctl.exe','drivedb.h','COPYING.txt','smartmontools-7.5-source.tar.gz')) {
+            Copy-Item (Join-Path publish-win-x64/smartmontools $name) (Join-Path portable-clean/smartmontools $name)
+          }
+          Copy-Item docs/README-PORTABLE.txt portable-clean/README.txt
+          if (@(Get-ChildItem portable-clean -File -Recurse).Count -ne 10) { throw 'Portable allowlist must contain exactly 10 files' }
+          foreach ($name in @('DevicePulse.exe','libcdi.dll')) {
+            if ((Get-FileHash (Join-Path publish-win-x64 $name)).Hash -ne (Get-FileHash (Join-Path portable-clean $name)).Hash) { throw 'Portable payload changed' }
+          }
       - name: Package complete reproducible application source
         shell: pwsh
         run: |
@@ -253,5 +253,5 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: DevicePulse-0.9.15-Windows-x64-Admin-PawnIO-FR
-          path: publish-win-x64/
+          path: portable-clean/
           if-no-files-found: error

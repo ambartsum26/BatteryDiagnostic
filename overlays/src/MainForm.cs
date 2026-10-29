@@ -3,7 +3,7 @@ namespace BatteryDiagnostic;
 
 internal sealed partial class MainForm : Form
 {
-    internal const string Version="0.9.14";
+    internal const string Version="0.9.15";
     readonly IContainer components=new Container();
     readonly IBatterySource source;
     readonly SessionMonitor monitor=new();
@@ -54,6 +54,7 @@ internal sealed partial class MainForm : Form
             item.Click+=(_,_)=>SelectLanguage(lang);
             languageItems.Add(lang,item);languageMenu.Items.Add(item);
         }
+        languageMenu.ShowItemToolTips=false;
         // The menu belongs to the form. Never dispose it from Closed: ToolStrip still processes the click afterwards.
         languageButton.Click+=(_,_)=>{if(!closing)languageMenu.Show(languageButton,new Point(0,languageButton.Height));};
         battery.SelectedIndexChanged+=(_,_)=>
