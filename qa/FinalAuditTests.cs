@@ -5,7 +5,7 @@ internal static class FinalAuditTests
     {
         var failures=new List<string>();
         var results=new List<string>();
-        foreach(var (name,test) in new (string,Action)[]{("Storage/battery source integration",AuditHealthTests.Run),("CPU/GPU source validation",AuditSensorTests.Run),("Visible status/freshness/accessibility",AuditUiTests.Run)})
+        foreach(var (name,test) in new (string,Action)[]{("Storage/battery source integration",AuditHealthTests.Run),("CPU/GPU source validation",AuditSensorTests.Run),("Visible status/freshness/accessibility",AuditUiTests.Run),("Quiet navigation and manual information",NavigationTests.Run)})
         {
             try{test();results.Add("PASS: "+name);}
             catch(Exception ex){failures.Add(name+": "+ex);results.Add("FAIL: "+name+": "+ex.Message);}

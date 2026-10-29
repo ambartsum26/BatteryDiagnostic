@@ -1,7 +1,7 @@
-name: DevicePulse 0.9.14 integrated PawnIO French
+name: DevicePulse 0.9.15 integrated PawnIO French
 on:
   push:
-    branches: [codex/devicepulse-0.9.14-sensor-coverage]
+    branches: [codex/devicepulse-0.9.15-navigation]
   workflow_dispatch:
 permissions:
   contents: read
@@ -29,6 +29,7 @@ jobs:
         run: |
           Copy-Item qa/Audit*Tests.cs src/ -Force
           Copy-Item qa/FinalAuditTests.cs src/ -Force
+          Copy-Item qa/NavigationTests.cs src/ -Force
           $p = Get-Content src/Program.cs -Raw
           $p = $p.Replace('            // Automatically activate', '            if(args.Contains("--audit-self-test")) { ApplicationConfiguration.Initialize();FinalAuditTests.Run();return; }' + [Environment]::NewLine + '            // Automatically activate')
           Set-Content src/Program.cs $p
@@ -151,7 +152,7 @@ jobs:
           }
       - uses: actions/upload-artifact@v4
         with:
-          name: DevicePulse-0.9.14-UI-preview
+          name: DevicePulse-0.9.15-UI-preview
           path: publish-win-x64/ui-preview/
           if-no-files-found: error
       - name: Keep previews out of portable package
@@ -183,6 +184,7 @@ jobs:
             publish-win-x64/final-audit-preview/
             publish-win-x64/audit-regressions.txt
             publish-win-x64/audit-visual.txt
+            publish-win-x64/navigation-tests.txt
             publish-win-x64/error.txt
       - name: Keep audit images out of portable ZIP
         shell: pwsh
@@ -216,7 +218,7 @@ jobs:
           Copy-Item src/ThirdPartyNotices.txt publish-win-x64/ThirdPartyNotices.txt
           Copy-Item pawnio-verification.txt publish-win-x64/pawnio-verification.txt
           @'
-          DevicePulse 0.9.14 — Windows x64. Extrayez le ZIP puis lancez DevicePulse.exe. Acceptez la demande administrateur de Windows. Si le pilote est absent et le processeur pris en charge, une fenêtre en français propose Installer ou Plus tard. Le programme officiel signé PawnIO 2.2.0 est intégré au fichier EXE; aucun téléchargement du pilote n’est nécessaire. Le pilote reste installé dans Windows. Un redémarrage peut être nécessaire. Les versions de pilote déjà présentes ne sont pas remplacées automatiquement.
+          DevicePulse 0.9.15 — Windows x64. Extrayez le ZIP puis lancez DevicePulse.exe. Acceptez la demande administrateur de Windows. Si le pilote est absent et le processeur pris en charge, une fenêtre en français propose Installer ou Plus tard. Le programme officiel signé PawnIO 2.2.0 est intégré au fichier EXE; aucun téléchargement du pilote n’est nécessaire. Le pilote reste installé dans Windows. Un redémarrage peut être nécessaire. Les versions de pilote déjà présentes ne sont pas remplacées automatiquement.
           '@ | Set-Content publish-win-x64/LIRE-MOI.txt
           @'
           Распакуйте ZIP и запустите DevicePulse.exe. Права администратора запрашиваются автоматически. Установщик PawnIO 2.2.0 встроен в EXE. Если драйвер отсутствует и CPU поддерживается, появится французское окно Installer / Plus tard. Установка только после подтверждения; драйвер остаётся в Windows. Иногда нужна перезагрузка. Существующий драйвер автоматически не заменяется.
@@ -225,7 +227,7 @@ jobs:
           Official unchanged PawnIO.Setup 2.2.0: https://github.com/namazso/PawnIO.Setup/releases/tag/2.2.0 . Embedded installer SHA256: 1F519A22E47187F70A1379A48CA604981C4FCF694F4E65B734AAA74A9FBA3032 . Authenticode verified in CI and rechecked at runtime before explicit user-approved installation.
           '@ | Set-Content publish-win-x64/PawnIO-NOTICE.txt
           @'
-          DevicePulse 0.9.14 win-x64. Runtime included. Full synthetic tests passed in non-elevated QA builds; final requireAdministrator manifest verified. Official installer integrity/signature and French consent UI verified. Driver installation and physical hardware were NOT tested in CI.
+          DevicePulse 0.9.15 win-x64. Runtime included. Full synthetic tests passed in non-elevated QA builds; final requireAdministrator manifest verified. Official installer integrity/signature and French consent UI verified. Driver installation and physical hardware were NOT tested in CI.
           '@ | Set-Content publish-win-x64/BUILD-INFO.txt
           Get-ChildItem publish-win-x64 -Recurse -File | Where-Object Name -ne SHA256SUMS.txt | ForEach-Object { $h = Get-FileHash $_.FullName -Algorithm SHA256; "$($h.Hash)  $([IO.Path]::GetRelativePath((Join-Path $PWD 'publish-win-x64'),$_.FullName))" } | Set-Content publish-win-x64/SHA256SUMS.txt
       - name: Package complete reproducible application source
@@ -242,14 +244,14 @@ jobs:
             Copy-Item -LiteralPath $file.FullName -Destination $target
           }
           Copy-Item docs/SENSOR-COMPATIBILITY.md complete-source/README.md
-          Compress-Archive complete-source/* DevicePulse-0.9.14-complete-source.zip -CompressionLevel Optimal
+          Compress-Archive complete-source/* DevicePulse-0.9.15-complete-source.zip -CompressionLevel Optimal
       - uses: actions/upload-artifact@v4
         with:
-          name: DevicePulse-0.9.14-complete-source
-          path: DevicePulse-0.9.14-complete-source.zip
+          name: DevicePulse-0.9.15-complete-source
+          path: DevicePulse-0.9.15-complete-source.zip
           if-no-files-found: error
       - uses: actions/upload-artifact@v4
         with:
-          name: DevicePulse-0.9.14-Windows-x64-Admin-PawnIO-FR
+          name: DevicePulse-0.9.15-Windows-x64-Admin-PawnIO-FR
           path: publish-win-x64/
           if-no-files-found: error
